@@ -1,0 +1,128 @@
+@startuml
+
+set separator none
+hide stereotype
+
+<style>
+  root {
+    BackgroundColor: transparent;
+    FontColor: #8b949e;
+  }
+  // Element,Container,DataStore
+  .Element-RWxlbWVudCxDb250YWluZXIsRGF0YVN0b3Jl {
+    BackgroundColor: #7d4e00;
+    LineColor: #30363d;
+    LineStyle: 0;
+    LineThickness: 2;
+    FontColor: #e6edf3;
+    FontSize: 24;
+    HorizontalAlignment: center;
+    Shadowing: 0;
+    MaximumWidth: 200;
+  }
+  // Element,Container,Frontend
+  .Element-RWxlbWVudCxDb250YWluZXIsRnJvbnRlbmQ= {
+    BackgroundColor: #0d419d;
+    LineColor: #58a6ff;
+    LineStyle: 0;
+    LineThickness: 2;
+    FontColor: #e6edf3;
+    FontSize: 24;
+    HorizontalAlignment: center;
+    Shadowing: 0;
+    MaximumWidth: 200;
+  }
+  // Element,Container,Infra
+  .Element-RWxlbWVudCxDb250YWluZXIsSW5mcmE= {
+    BackgroundColor: #1f2937;
+    LineColor: #30363d;
+    LineStyle: 0;
+    LineThickness: 2;
+    RoundCorner: 20;
+    FontColor: #e6edf3;
+    FontSize: 24;
+    HorizontalAlignment: center;
+    Shadowing: 0;
+    MaximumWidth: 200;
+  }
+  // Element,Container,Messaging
+  .Element-RWxlbWVudCxDb250YWluZXIsTWVzc2FnaW5n {
+    BackgroundColor: #7d4e00;
+    LineColor: #30363d;
+    LineStyle: 0;
+    LineThickness: 2;
+    FontColor: #e6edf3;
+    FontSize: 24;
+    HorizontalAlignment: center;
+    Shadowing: 0;
+    MaximumWidth: 200;
+  }
+  // Element,Container,Microservice
+  .Element-RWxlbWVudCxDb250YWluZXIsTWljcm9zZXJ2aWNl {
+    BackgroundColor: #0d419d;
+    LineColor: #58a6ff;
+    LineStyle: 0;
+    LineThickness: 2;
+    RoundCorner: 20;
+    FontColor: #e6edf3;
+    FontSize: 24;
+    HorizontalAlignment: center;
+    Shadowing: 0;
+    MaximumWidth: 200;
+  }
+  // Element,Person
+  .Element-RWxlbWVudCxQZXJzb24= {
+    BackgroundColor: #1e3a5f;
+    LineColor: #30363d;
+    LineStyle: 0;
+    LineThickness: 2;
+    FontColor: #e6edf3;
+    FontSize: 24;
+    HorizontalAlignment: center;
+    Shadowing: 0;
+    MaximumWidth: 200;
+  }
+  // Relationship
+  .Relationship-UmVsYXRpb25zaGlw {
+    LineThickness: 2;
+    LineStyle: 10-10;
+    LineColor: #8b949e;
+    FontColor: #8b949e;
+    FontSize: 24;
+    MaximumWidth: 200;
+  }
+  // Scooter Rental Platform
+  .Boundary-U2Nvb3RlciBSZW50YWwgUGxhdGZvcm0= {
+    BackgroundColor: #161b22;
+    LineColor: #30363d;
+    LineStyle: 0;
+    LineThickness: 2;
+    FontColor: #e6edf3;
+    FontSize: 24;
+    HorizontalAlignment: center;
+    Shadowing: 0;
+  }
+  // transparent element for relationships in legend
+  .Element-Transparent {
+    BackgroundColor: transparent;
+    LineColor: transparent;
+    FontColor: transparent;
+  }
+</style>
+
+database "==Container, DataStore" <<Element-RWxlbWVudCxDb250YWluZXIsRGF0YVN0b3Jl>>
+
+rectangle "==Container, Frontend" <<Element-RWxlbWVudCxDb250YWluZXIsRnJvbnRlbmQ=>>
+
+rectangle "==Container, Infra" <<Element-RWxlbWVudCxDb250YWluZXIsSW5mcmE=>>
+
+queue "==Container, Messaging" <<Element-RWxlbWVudCxDb250YWluZXIsTWVzc2FnaW5n>>
+
+rectangle "==Container, Microservice" <<Element-RWxlbWVudCxDb250YWluZXIsTWljcm9zZXJ2aWNl>>
+
+person "==Person" <<Element-RWxlbWVudCxQZXJzb24=>>
+
+rectangle "." <<.Element-Transparent>> as 1
+1 --> 1 <<Relationship-UmVsYXRpb25zaGlw>> : "Relationship"
+
+@enduml

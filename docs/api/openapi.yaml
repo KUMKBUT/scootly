@@ -1,0 +1,568 @@
+openapi: 3.0.3
+info:
+  title: Scootly API
+  version: 0.2.0-mvp
+  description: |
+    REST-контракт MVP аренды самокатов (этап 2 — подготовка к разработке).
+    В проде генерируется из кода через utoipa (`scripts/gen-openapi.sh`), этот файл — эталон контракта.
+
+    Конвенции:
+    * Авторизация — `Authorization: Bearer <access_jwt>`, кроме `/health` и вебхука YooKassa.
+    * Деньги — копейки (`integer`), время — ISO 8601 / UTC.
+    * Ошибки — единый конверт `Error` с машинным `code`.
+    * Атомарность брони — серверная (`UPDATE..WHERE..RETURNING`), клиент просто получает 409.
+    * Live-обновления — по WebSocket (см. `docs/api/websocket.md`), REST — снапшот и команды.
+servers:
+  - url: http://localhost:9000
+    description: local (nginx → сервисы)
+  - url: https://api.scootly.example
+    description: staging/prod
+
+security:
+  - bearerAuth: []
+
+paths:
+  /health:
+    get:
+      summary: Health check
+      operationId: health
+      security: []
+      responses:
+        '200':
+          description: OK
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: ok
+
+  # ── Auth ────────────────────────────────────────────────────────────────
+  /api/v1/auth/telegram:
+    post:
+      summary: Вход через Telegram Mini App
+      description: |
+        Принимает `initData` из Telegram WebApp, проверяет подпись бота (ADR-0013)
+        и выдаёт пару JWT. Пользователь создаётся при первом входе.
+      operationId: authTelegram
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [init_data]
+              properties:
+                init_data:
+                  type: string
+                  description: Сырая строка Telegram WebApp `initData`
+                phone:
+                  type: string
+                  description: Опционально, если запрошен contact-токен
+      responses:
+        '200':
+          description: JWT-пара и профиль
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /api/v1/auth/refresh:
+    post:
+      summary: Обновить access-токен
+      operationId: authRefresh
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [refresh_token]
+              properties:
+                refresh_token:
+                  type: string
+      responses:
+        '200':
+          description: Новая JWT-пара
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /api/v1/me:
+    get:
+      summary: Текущий профиль
+      operationId: getMe
+      responses:
+        '200':
+          description: Профиль
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+
+  # ── Scooters ────────────────────────────────────────────────────────────
+  /api/v1/scooters/nearby:
+    get:
+      summary: Самокаты рядом
+      description: Redis GEO-кэш, свежесть по SLO (ADR-0011). Свой самокат «под бронью» помечен.
+      operationId: nearbyScooters
+      parameters:
+        - name: lat
+          in: query
+          required: true
+          schema: { type: number, format: double, minimum: -90, maximum: 90 }
+        - name: lon
+          in: query
+          required: true
+          schema: { type: number, format: double, minimum: -180, maximum: 180 }
+        - name: radius_m
+          in: query
+          description: Радиус поиска
+          schema: { type: integer, default: 500, maximum: 3000 }
+      responses:
+        '200':
+          description: Список самокатов (может быть пустым)
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Scooter'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /api/v1/scooters/{id}:
+    get:
+      summary: Карточка самоката
+      operationId: getScooter
+      parameters:
+        - $ref: '#/components/parameters/ScooterId'
+      responses:
+        '200':
+          description: Самокат
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Scooter'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  # ── Reservations ────────────────────────────────────────────────────────
+  /api/v1/reservations:
+    post:
+      summary: Забронировать самокат (10 минут)
+      description: |
+        TTL 10 минут, бесплатно. Гонка решается на сервере:
+        если самокат уже занят — `409 scooter_unavailable`. Активная бронь юзера — не больше одной.
+      operationId: createReservation
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [scooter_id]
+              properties:
+                scooter_id: { type: string, format: uuid }
+      responses:
+        '201':
+          description: Бронь создана
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Reservation'
+        '402':
+          $ref: '#/components/responses/PaymentRequired'
+          description: Нет привязанной карты (политика MVP — бронь только с картой)
+        '409':
+          description: Самокат занят или уже есть активная бронь
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/v1/reservations/{id}:
+    delete:
+      summary: Отменить бронь
+      operationId: cancelReservation
+      parameters:
+        - $ref: '#/components/parameters/ReservationId'
+      responses:
+        '204':
+          description: Отменена (идемпотентно)
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  # ── Rides ───────────────────────────────────────────────────────────────
+  /api/v1/rides:
+    get:
+      summary: История поездок
+      operationId: listRides
+      parameters:
+        - name: limit
+          in: query
+          schema: { type: integer, default: 20, maximum: 100 }
+        - name: before
+          in: query
+          description: Пагинация по курсору (started_at)
+          schema: { type: string, format: date-time }
+      responses:
+        '200':
+          description: Поездки, свежие сверху
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Ride'
+                  next_before:
+                    type: string
+                    format: date-time
+                    nullable: true
+
+    post:
+      summary: Начать поездку (unlock)
+      description: |
+        Порядок: привязана ли карта → холд YooKassa (`hold:{ride_id}`) → unlock самоката → 201.
+        Unlock не подтверждён за 10 c → `502 unlock_timeout`, холд отменяется (ADR-0006),
+        ride получает `status=failed` — детали приходят по WS (`ride.unlock_failed`).
+      operationId: startRide
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [scooter_id]
+              properties:
+                scooter_id: { type: string, format: uuid }
+                reservation_id:
+                  type: string
+                  format: uuid
+                  description: Если старт из брони — бронь переходит в `converted`
+      responses:
+        '201':
+          description: Поездка активна, самокат разблокирован
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Ride'
+        '402':
+          $ref: '#/components/responses/PaymentRequired'
+        '409':
+          description: Самокат не доступен (`scooter_unavailable`) или уже есть активная поездка (`ride_in_progress`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '502':
+          description: Unlock не подтверждён (`unlock_timeout`), холд снят
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/v1/rides/{id}:
+    get:
+      summary: "Статус поездки: минуты и текущая стоимость (снапшот)"
+      operationId: getRide
+      parameters:
+        - $ref: '#/components/parameters/RideId'
+      responses:
+        '200':
+          description: Поездка
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Ride'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/v1/rides/{id}/finish:
+    post:
+      summary: Завершить поездку (lock + capture)
+      description: |
+        Идемпотентно: повторный вызов вернёт то же состояние `finished`, двойного capture
+        нет (`UNIQUE idempotency_key = ride:{ride_id}`, ADR-0014). Координаты — для истории,
+        тариф считается по минутам на сервере.
+      operationId: finishRide
+      parameters:
+        - $ref: '#/components/parameters/RideId'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                lat: { type: number, format: double }
+                lon: { type: number, format: double }
+      responses:
+        '200':
+          description: Поездка завершена, платёж captured
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Ride'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: Поездка уже не активна (`ride_not_active`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '502':
+          description: Лок не подтвердился (`lock_ack_timeout`) — поездка остаётся активной, юзер ретраит
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  # ── Payments ────────────────────────────────────────────────────────────
+  /api/v1/payments/methods:
+    get:
+      summary: Привязанные карты
+      operationId: listPaymentMethods
+      responses:
+        '200':
+          description: Список карт (MVP — максимум одна)
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/PaymentMethod'
+
+    post:
+      summary: Привязать карту
+      description: Создаёт платёж-привязку в YooKassa, клиент открывает `confirmation_url` и возвращается в Mini App.
+      operationId: createPaymentMethod
+      responses:
+        '201':
+          description: Ссылка на подтверждение
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [confirmation_url]
+                properties:
+                  confirmation_url: { type: string, format: uri }
+
+  /api/v1/payments:
+    get:
+      summary: История платежей
+      operationId: listPayments
+      parameters:
+        - name: ride_id
+          in: query
+          schema: { type: string, format: uuid }
+        - name: limit
+          in: query
+          schema: { type: integer, default: 20, maximum: 100 }
+      responses:
+        '200':
+          description: Платежи
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Payment'
+
+  /api/v1/payments/webhook:
+    post:
+      summary: Вебхук YooKassa
+      description: |
+        Уведомления `payment.succeeded / payment.canceled / payment.refunded`.
+        Без JWT: подлинность — проверкой источника (IP allowlist) и данных уведомления
+        повторным запросом в API YooKassa. Обработка идемпотентна по `UNIQUE idempotency_key`.
+      operationId: paymentWebhook
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/YookassaNotification'
+      responses:
+        '200':
+          description: Принято (always 200, обработка — асинхронная через outbox)
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  parameters:
+    ScooterId:
+      name: id
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    ReservationId:
+      name: id
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    RideId:
+      name: id
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+
+  responses:
+    BadRequest:
+      description: Некорректный запрос
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    Unauthorized:
+      description: Нет/просрочен JWT
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    PaymentRequired:
+      description: Нет привязанной карты или холд не прошёл (`no_payment_method` / `hold_failed`)
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    NotFound:
+      description: Не найдено
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+
+  schemas:
+    User:
+      type: object
+      required: [id, telegram_id, created_at]
+      properties:
+        id: { type: string, format: uuid }
+        telegram_id: { type: integer, format: int64 }
+        phone: { type: string, nullable: true }
+        has_payment_method: { type: boolean }
+        created_at: { type: string, format: date-time }
+
+    AuthResponse:
+      type: object
+      required: [access_token, refresh_token, user]
+      properties:
+        access_token: { type: string }
+        refresh_token: { type: string }
+        expires_in: { type: integer, description: TTL access-токена в секундах }
+        user: { $ref: '#/components/schemas/User' }
+
+    Scooter:
+      type: object
+      required: [id, code, lat, lon, status, battery_pct]
+      properties:
+        id: { type: string, format: uuid }
+        code: { type: string, example: SC-0123 }
+        lat: { type: number, format: double }
+        lon: { type: number, format: double }
+        status: { type: string, enum: [available, booked, rented, offline] }
+        battery_pct: { type: integer }
+        my_reservation_id:
+          type: string
+          format: uuid
+          nullable: true
+          description: Заполнено, если самокат забронирован текущим юзером
+
+    Reservation:
+      type: object
+      required: [id, scooter_id, status, expires_at]
+      properties:
+        id: { type: string, format: uuid }
+        scooter_id: { type: string, format: uuid }
+        status: { type: string, enum: [active, expired, converted, canceled] }
+        expires_at: { type: string, format: date-time }
+
+    Ride:
+      type: object
+      required: [id, scooter_id, status, started_at]
+      properties:
+        id: { type: string, format: uuid }
+        scooter_id: { type: string, format: uuid }
+        reservation_id: { type: string, format: uuid, nullable: true }
+        status: { type: string, enum: [active, finished, failed] }
+        started_at: { type: string, format: date-time }
+        finished_at: { type: string, format: date-time, nullable: true }
+        total_min: { type: integer, nullable: true }
+        amount_kopeks: { type: integer, nullable: true, description: Для active — текущая стоимость }
+        payment:
+          $ref: '#/components/schemas/Payment'
+
+    PaymentMethod:
+      type: object
+      required: [id, card_last4]
+      properties:
+        id: { type: string }
+        card_last4: { type: string, example: '4444' }
+        card_network: { type: string, example: mir }
+
+    Payment:
+      type: object
+      required: [id, status, amount_kopeks, created_at]
+      properties:
+        id: { type: string, format: uuid }
+        ride_id: { type: string, format: uuid, nullable: true }
+        status: { type: string, enum: [hold, captured, canceled, refunded] }
+        amount_kopeks: { type: integer }
+        created_at: { type: string, format: date-time }
+
+    YookassaNotification:
+      type: object
+      required: [type, event, object]
+      properties:
+        type: { type: string, example: notification }
+        event: { type: string, enum: [payment.succeeded, payment.canceled, payment.refunded] }
+        object:
+          type: object
+          properties:
+            id: { type: string, description: yookassa_id }
+            status: { type: string }
+            paid: { type: boolean }
+            metadata:
+              type: object
+              additionalProperties: { type: string }
+
+    Error:
+      type: object
+      required: [code, message]
+      properties:
+        code:
+          type: string
+          description: Машинный код для UI
+          enum:
+            - validation_error
+            - unauthorized
+            - scooter_unavailable
+            - scooter_not_found
+            - reservation_active_exists
+            - reservation_expired
+            - ride_in_progress
+            - ride_not_active
+            - unlock_timeout
+            - lock_ack_timeout
+            - no_payment_method
+            - hold_failed
+            - capture_failed
+            - rate_limited
+            - internal
+        message: { type: string }
+        details: { type: object, additionalProperties: true, nullable: true }

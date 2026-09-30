@@ -1,0 +1,121 @@
+@startuml
+title <size:24>Component View: Scooter Rental Platform - Rental Service</size>\n<size:24>Ядро аренды: lifecycle, бронь, тарифы, outbox</size>
+
+set separator none
+left to right direction
+skinparam ranksep 20
+skinparam nodesep 5
+hide stereotype
+
+<style>
+  root {
+    BackgroundColor: transparent;
+    FontColor: #8b949e;
+  }
+  // Element,Component
+  .Element-RWxlbWVudCxDb21wb25lbnQ= {
+    BackgroundColor: #1a7f37;
+    LineColor: #3fb950;
+    LineStyle: 0;
+    LineThickness: 2;
+    FontColor: #e6edf3;
+    FontSize: 24;
+    HorizontalAlignment: center;
+    Shadowing: 0;
+    MaximumWidth: 450;
+  }
+  // Element,Container,DataStore
+  .Element-RWxlbWVudCxDb250YWluZXIsRGF0YVN0b3Jl {
+    BackgroundColor: #7d4e00;
+    LineColor: #30363d;
+    LineStyle: 0;
+    LineThickness: 2;
+    FontColor: #e6edf3;
+    FontSize: 24;
+    HorizontalAlignment: center;
+    Shadowing: 0;
+    MaximumWidth: 450;
+  }
+  // Element,Container,Messaging
+  .Element-RWxlbWVudCxDb250YWluZXIsTWVzc2FnaW5n {
+    BackgroundColor: #7d4e00;
+    LineColor: #30363d;
+    LineStyle: 0;
+    LineThickness: 2;
+    FontColor: #e6edf3;
+    FontSize: 24;
+    HorizontalAlignment: center;
+    Shadowing: 0;
+    MaximumWidth: 450;
+  }
+  // Element,Software System,External,IoT
+  .Element-RWxlbWVudCxTb2Z0d2FyZSBTeXN0ZW0sRXh0ZXJuYWwsSW9U {
+    BackgroundColor: #7d4e00;
+    LineColor: #30363d;
+    LineStyle: 0;
+    LineThickness: 2;
+    FontColor: #e6edf3;
+    FontSize: 24;
+    HorizontalAlignment: center;
+    Shadowing: 0;
+    MaximumWidth: 450;
+  }
+  // Relationship
+  .Relationship-UmVsYXRpb25zaGlw {
+    LineThickness: 2;
+    LineStyle: 10-10;
+    LineColor: #8b949e;
+    FontColor: #8b949e;
+    FontSize: 24;
+    MaximumWidth: 200;
+  }
+  // Rental Service
+  .Boundary-UmVudGFsIFNlcnZpY2U= {
+    BackgroundColor: #161b22;
+    LineColor: #58a6ff;
+    LineStyle: 0;
+    LineThickness: 2;
+    FontColor: #e6edf3;
+    FontSize: 24;
+    HorizontalAlignment: center;
+    Shadowing: 0;
+  }
+  // Scooter Rental Platform
+  .Boundary-U2Nvb3RlciBSZW50YWwgUGxhdGZvcm0= {
+    BackgroundColor: #161b22;
+    LineColor: #30363d;
+    LineStyle: 0;
+    LineThickness: 2;
+    FontColor: #e6edf3;
+    FontSize: 24;
+    HorizontalAlignment: center;
+    Shadowing: 0;
+  }
+</style>
+
+database "==Scooter IoT Device\n<size:16>[Software System]</size>\n\nЭмулированные самокаты: GPS, замок, АКБ" <<Element-RWxlbWVudCxTb2Z0d2FyZSBTeXN0ZW0sRXh0ZXJuYWwsSW9U>> as ScooterIoTDevice
+
+rectangle "Scooter Rental Platform\n<size:16>[Software System]</size>" <<Boundary-U2Nvb3RlciBSZW50YWwgUGxhdGZvcm0=>> {
+  rectangle "Rental Service\n<size:16>[Container: Rust + Axum]</size>" <<Boundary-UmVudGFsIFNlcnZpY2U=>> {
+    component "==Rental Lifecycle\n<size:16>[Component: Rust]</size>\n\nstart/finish, холд в capture, команды замку" <<Element-RWxlbWVudCxDb21wb25lbnQ=>> as ScooterRentalPlatform.RentalService.RentalLifecycle
+    component "==Booking Manager\n<size:16>[Component: Rust]</size>\n\nБронь 5 мин (TTL), лимит 1+1" <<Element-RWxlbWVudCxDb21wb25lbnQ=>> as ScooterRentalPlatform.RentalService.BookingManager
+    component "==Tariff Engine\n<size:16>[Component: Rust]</size>\n\nМинуты/пакеты, подписка −20%/−15%" <<Element-RWxlbWVudCxDb21wb25lbnQ=>> as ScooterRentalPlatform.RentalService.TariffEngine
+    component "==Outbox Relay\n<size:16>[Component: Rust]</size>\n\nЧитает outbox, публикует в Kafka" <<Element-RWxlbWVudCxDb21wb25lbnQ=>> as ScooterRentalPlatform.RentalService.OutboxRelay
+  }
+
+  database "==PostgreSQL\n<size:16>[Container: PostgreSQL 16]</size>\n\nSource of truth (в т.ч. брони), по схеме на сервис" <<Element-RWxlbWVudCxDb250YWluZXIsRGF0YVN0b3Jl>> as ScooterRentalPlatform.PostgreSQL
+  database "==Redis\n<size:16>[Container: Redis 7 + pipeline]</size>\n\nТолько TTL-триггер брони + GEO-кэш + сессии + rate limiting" <<Element-RWxlbWVudCxDb250YWluZXIsRGF0YVN0b3Jl>> as ScooterRentalPlatform.Redis
+  queue "==Kafka\n<size:16>[Container: Kafka]</size>\n\nДоменные события, KRaft-режим" <<Element-RWxlbWVudCxDb250YWluZXIsTWVzc2FnaW5n>> as ScooterRentalPlatform.Kafka
+}
+
+ScooterRentalPlatform.RentalService.RentalLifecycle --> ScooterRentalPlatform.RentalService.BookingManager <<Relationship-UmVsYXRpb25zaGlw>> : "Проверяет бронь и лимиты\n<size:16>[In-process call]</size>"
+ScooterRentalPlatform.RentalService.RentalLifecycle --> ScooterRentalPlatform.RentalService.TariffEngine <<Relationship-UmVsYXRpb25zaGlw>> : "Рассчитывает стоимость\n<size:16>[In-process call]</size>"
+ScooterRentalPlatform.RentalService.RentalLifecycle --> ScooterRentalPlatform.RentalService.OutboxRelay <<Relationship-UmVsYXRpb25zaGlw>> : "Сохраняет события в outbox\n<size:16>[In-process call]</size>"
+ScooterRentalPlatform.RentalService.RentalLifecycle --> ScooterRentalPlatform.PostgreSQL <<Relationship-UmVsYXRpb25zaGlw>> : "Аренды и брони\n<size:16>[SQL]</size>"
+ScooterRentalPlatform.RentalService.RentalLifecycle --> ScooterIoTDevice <<Relationship-UmVsYXRpb25zaGlw>> : "Unlock/lock\n<size:16>[MQTT (QoS 1)]</size>"
+ScooterRentalPlatform.RentalService.BookingManager --> ScooterRentalPlatform.Redis <<Relationship-UmVsYXRpb25zaGlw>> : "TTL брони 5 мин\n<size:16>[Redis]</size>"
+ScooterRentalPlatform.RentalService.TariffEngine --> ScooterRentalPlatform.PostgreSQL <<Relationship-UmVsYXRpb25zaGlw>> : "Читает тарифы, пакеты, подписки\n<size:16>[SQL]</size>"
+ScooterRentalPlatform.RentalService.OutboxRelay --> ScooterRentalPlatform.PostgreSQL <<Relationship-UmVsYXRpb25zaGlw>> : "Читает outbox\n<size:16>[SQL]</size>"
+ScooterRentalPlatform.RentalService.OutboxRelay --> ScooterRentalPlatform.Kafka <<Relationship-UmVsYXRpb25zaGlw>> : "Публикует события (<topic>.v1)\n<size:16>[Kafka]</size>"
+
+@enduml

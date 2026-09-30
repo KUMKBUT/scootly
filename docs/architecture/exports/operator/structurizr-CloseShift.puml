@@ -1,0 +1,101 @@
+@startuml
+title <size:24>Dynamic View: Operator Mobile App</size>\n<size:24>Закрытие смены: 3 экрана и shift.closed</size>
+
+set separator none
+left to right direction
+skinparam ranksep 20
+skinparam nodesep 5
+hide stereotype
+
+<style>
+  root {
+    BackgroundColor: transparent;
+    FontColor: #8b949e;
+  }
+  // Element,Container,DataStore
+  .Element-RWxlbWVudCxDb250YWluZXIsRGF0YVN0b3Jl {
+    BackgroundColor: #7d4e00;
+    LineColor: #30363d;
+    LineStyle: 0;
+    LineThickness: 2;
+    FontColor: #e6edf3;
+    FontSize: 24;
+    HorizontalAlignment: center;
+    Shadowing: 0;
+    MaximumWidth: 450;
+  }
+  // Element,Container,Frontend
+  .Element-RWxlbWVudCxDb250YWluZXIsRnJvbnRlbmQ= {
+    BackgroundColor: #0d419d;
+    LineColor: #58a6ff;
+    LineStyle: 0;
+    LineThickness: 2;
+    FontColor: #e6edf3;
+    FontSize: 24;
+    HorizontalAlignment: center;
+    Shadowing: 0;
+    MaximumWidth: 450;
+  }
+  // Element,Person
+  .Element-RWxlbWVudCxQZXJzb24= {
+    BackgroundColor: #1e3a5f;
+    LineColor: #30363d;
+    LineStyle: 0;
+    LineThickness: 2;
+    FontColor: #e6edf3;
+    FontSize: 24;
+    HorizontalAlignment: center;
+    Shadowing: 0;
+    MaximumWidth: 450;
+  }
+  // Element,Software System,External
+  .Element-RWxlbWVudCxTb2Z0d2FyZSBTeXN0ZW0sRXh0ZXJuYWw= {
+    BackgroundColor: #6e40c9;
+    LineColor: #30363d;
+    LineStyle: 0;
+    LineThickness: 2;
+    FontColor: #e6edf3;
+    FontSize: 24;
+    HorizontalAlignment: center;
+    Shadowing: 0;
+    MaximumWidth: 450;
+  }
+  // Relationship
+  .Relationship-UmVsYXRpb25zaGlw {
+    LineThickness: 2;
+    LineStyle: 10-10;
+    LineColor: #8b949e;
+    FontColor: #8b949e;
+    FontSize: 24;
+    MaximumWidth: 200;
+  }
+  // Operator Mobile App
+  .Boundary-T3BlcmF0b3IgTW9iaWxlIEFwcA== {
+    BackgroundColor: #161b22;
+    LineColor: #30363d;
+    LineStyle: 0;
+    LineThickness: 2;
+    FontColor: #e6edf3;
+    FontSize: 24;
+    HorizontalAlignment: center;
+    Shadowing: 0;
+  }
+</style>
+
+rectangle "Operator Mobile App\n<size:16>[Software System]</size>" <<Boundary-T3BlcmF0b3IgTW9iaWxlIEFwcA==>> {
+  rectangle "==Shift Screens\n<size:16>[Container: React Native]</size>\n\nShiftReport, BatteryInventory, ScooterIssues" <<Element-RWxlbWVudCxDb250YWluZXIsRnJvbnRlbmQ=>> as OperatorMobileApp.ShiftScreens
+  rectangle "==Sync Engine\n<size:16>[Container: React Native]</size>\n\nОчередь операций (SQLite), retry, client_op_id (UUID), сверка со сменой" <<Element-RWxlbWVudCxDb250YWluZXIsRnJvbnRlbmQ=>> as OperatorMobileApp.SyncEngine
+  database "==Local Store\n<size:16>[Container: SQLite]</size>\n\nЗадачи, черновики отчётов, очередь фото" <<Element-RWxlbWVudCxDb250YWluZXIsRGF0YVN0b3Jl>> as OperatorMobileApp.LocalStore
+}
+
+person "==Оператор\n<size:16>[Person]</size>\n\nЗамена АКБ, задачи, закрытие смены" <<Element-RWxlbWVudCxQZXJzb24=>> as Оператор
+rectangle "==Scooter Rental Platform\n<size:16>[Software System]</size>\n\nБэкенд: задачи, смены, тикеты. Детали — platform/workspace.dsl" <<Element-RWxlbWVudCxTb2Z0d2FyZSBTeXN0ZW0sRXh0ZXJuYWw=>> as ScooterRentalPlatform
+rectangle "==Telegram Platform\n<size:16>[Software System]</size>\n\nАлерты диспетчеру через Bot API" <<Element-RWxlbWVudCxTb2Z0d2FyZSBTeXN0ZW0sRXh0ZXJuYWw=>> as TelegramPlatform
+
+Оператор --> OperatorMobileApp.ShiftScreens <<Relationship-UmVsYXRpb25zaGlw>> : "1: Задачи, QR, фото, 3 экрана смены\n<size:16>[Touch]</size>"
+OperatorMobileApp.ShiftScreens --> OperatorMobileApp.LocalStore <<Relationship-UmVsYXRpb25zaGlw>> : "2: Читает задачи и отчёты\n<size:16>[SQL]</size>"
+OperatorMobileApp.ShiftScreens --> OperatorMobileApp.SyncEngine <<Relationship-UmVsYXRpb25zaGlw>> : "3: Отправляет операции\n<size:16>[In-process call]</size>"
+OperatorMobileApp.SyncEngine --> ScooterRentalPlatform <<Relationship-UmVsYXRpb25zaGlw>> : "4: Синхронизация: задачи, смены, фото (presigned S3)\n<size:16>[HTTPS/JSON]</size>"
+ScooterRentalPlatform --> TelegramPlatform <<Relationship-UmVsYXRpb25zaGlw>> : "5: Отчёт смены диспетчеру\n<size:16>[Bot API]</size>"
+
+@enduml

@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&family=JetBrains+Mono&display=swap');
+    body { font-family: 'Inter', 'Noto Sans', sans-serif; }
+    .mono { font-family: 'JetBrains Mono', monospace; }
+    .emoji { display: inline-block; vertical-align: -0.08em; }
+  </style>
+</head>
+<body class="w-[1920px] h-[1080px] bg-gradient-to-br from-[#0d1117] to-[#161b22] text-[#e6edf3] overflow-hidden">
+  <div class="p-20 flex flex-col h-full">
+
+    <div class="flex items-baseline gap-6">
+      <span class="text-[80px] leading-none"><img src="assets/scooter.svg" class="emoji w-[72px] h-[72px]" alt="scooter"></span>
+      <h1 class="text-[88px] font-extrabold tracking-tight leading-none">Scootly</h1>
+      <span class="mono text-[32px] text-[#8b949e] ml-4">pet project · day 1</span>
+    </div>
+
+    <p class="mono text-[28px] text-[#58a6ff] mt-6">
+      Rust + Axum · Kafka · K8s · React
+    </p>
+
+    <div class="flex-1 flex items-center justify-center mt-12 min-h-0">
+      <img src="../../docs/architecture/exports/platform-containers.png"
+           class="max-h-full max-w-full drop-shadow-2xl">
+    </div>
+
+    <div class="flex justify-between items-center mt-10 pt-8 border-t border-[#30363d]">
+      <span class="text-[26px]"><img src="assets/crab.svg" class="emoji w-[30px] h-[30px]" alt=""> 10 сервисов</span>
+      <span class="text-[26px]"><img src="assets/tri-ruler.svg" class="emoji w-[30px] h-[30px]" alt=""> 14 ADR</span>
+      <span class="text-[26px]"><img src="assets/card-file-box.svg" class="emoji w-[30px] h-[30px]" alt=""> 3 workspace</span>
+      <span class="mono text-[22px] text-[#8b949e]">github.com/KUMKBUT/scootly</span>
+    </div>
+
+  </div>
+</body>
+</html>

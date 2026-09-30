@@ -1,0 +1,135 @@
+asyncapi: 2.6.0
+info:
+  title: Scootly Events
+  version: 0.2.0
+  description: |
+    Kafka-топики доменных событий.
+    Версионирование: <topic>.v1, backward-compatible only (ADR-0008), Avro-схемы в crates/proto/avro.
+    DLQ: у каждого consumer-топика парный <topic>.v1.dlq, retry 3x с backoff (1s/5s/25s) → DLQ (ADR-0010).
+servers:
+  production:
+    url: kafka:9092
+    protocol: kafka
+channels:
+  rental.started:
+    publish:
+      summary: Аренда начата
+      message:
+        $ref: '#/components/messages/RentalStarted'
+  rental.unlock-failed:
+    publish:
+      summary: Замок не подтвердил unlock за 10 сек, холд снят (ADR-0006)
+      message:
+        $ref: '#/components/messages/UnlockFailed'
+  rental.finished:
+    publish:
+      summary: Аренда завершена
+      message:
+        $ref: '#/components/messages/RentalFinished'
+  payment.succeeded:
+    publish:
+      summary: Оплата прошла
+      message:
+        $ref: '#/components/messages/PaymentSucceeded'
+  scooter.status-changed:
+    publish:
+      summary: Статус самоката изменился
+      message:
+        $ref: '#/components/messages/ScooterStatusChanged'
+components:
+  messages:
+    RentalStarted:
+      payload:
+        type: object
+        required: [rental_id, scooter_id, user_id]
+        properties:
+          rental_id:
+            type: string
+            format: uuid
+          scooter_id:
+            type: string
+            format: uuid
+          user_id:
+            type: string
+            format: uuid
+    UnlockFailed:
+      payload:
+        type: object
+        required: [rental_id, scooter_id, reason]
+        properties:
+          rental_id:
+            type: string
+            format: uuid
+          scooter_id:
+            type: string
+            format: uuid
+          reason:
+            type: string
+            enum: [lock_ack_timeout]
+    RentalFinished:
+      payload:
+        type: object
+        required: [rental_id, scooter_id]
+        properties:
+          rental_id:
+            type: string
+            format: uuid
+          scooter_id:
+            type: string
+            format: uuid
+    PaymentSucceeded:
+      payload:
+        type: object
+        required: [payment_id, rental_id, amount]
+        properties:
+          payment_id:
+            type: string
+            format: uuid
+          rental_id:
+            type: string
+            format: uuid
+          amount:
+            type: integer
+    ScooterStatusChanged:
+      payload:
+        type: object
+        required: [scooter_id, status]
+        properties:
+          scooter_id:
+            type: string
+            format: uuid
+          status:
+            type: string
+            enum: [available, rented, offline]
+
+# Retention и durability (источник правды — ADR-0005).
+# Суффикс .v1 — версия схемы (ADR-0008).
+x-kafka-retention:
+  rental.events.v1: 7d
+  booking.expired.v1: 7d
+  scooter.telemetry.v1: 24h
+  scooter.status.v1: 7d
+  support.tickets.v1: 30d
+  payment.events.v1: 30d
+  notification.send.v1: 3d
+  operator.tasks.v1: 7d
+  shift.events.v1: 7d
+
+# DLQ-топики: <topic>.v1.dlq, retry 3x backoff → DLQ, разбор ручной (ADR-0010).
+x-kafka-dlq:
+  rental.events.v1.dlq: 14d
+  booking.expired.v1.dlq: 14d
+  scooter.telemetry.v1.dlq: 14d
+  scooter.status.v1.dlq: 14d
+  support.tickets.v1.dlq: 14d
+  payment.events.v1.dlq: 14d
+  notification.send.v1.dlq: 14d
+  operator.tasks.v1.dlq: 14d
+  shift.events.v1.dlq: 14d
+
+x-kafka-durability:
+  dev:
+    min.insync.replicas: 1
+  prod:
+    min.insync.replicas: 2
+    acks: all

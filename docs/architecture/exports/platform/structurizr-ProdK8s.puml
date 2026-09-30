@@ -1,0 +1,178 @@
+@startuml
+title <size:24>Deployment View: Production</size>\n<size:24>Production: K8s-кластер, пул воркеров, managed data layer</size>
+
+set separator none
+left to right direction
+skinparam ranksep 20
+skinparam nodesep 5
+hide stereotype
+
+<style>
+  root {
+    BackgroundColor: transparent;
+    FontColor: #8b949e;
+  }
+  // Element,Container,DataStore
+  .Element-RWxlbWVudCxDb250YWluZXIsRGF0YVN0b3Jl {
+    BackgroundColor: #7d4e00;
+    LineColor: #30363d;
+    LineStyle: 0;
+    LineThickness: 2;
+    FontColor: #e6edf3;
+    FontSize: 24;
+    HorizontalAlignment: center;
+    Shadowing: 0;
+    MaximumWidth: 450;
+  }
+  // Element,Container,Infra
+  .Element-RWxlbWVudCxDb250YWluZXIsSW5mcmE= {
+    BackgroundColor: #1f2937;
+    LineColor: #30363d;
+    LineStyle: 0;
+    LineThickness: 2;
+    RoundCorner: 20;
+    FontColor: #e6edf3;
+    FontSize: 24;
+    HorizontalAlignment: center;
+    Shadowing: 0;
+    MaximumWidth: 450;
+  }
+  // Element,Container,Messaging
+  .Element-RWxlbWVudCxDb250YWluZXIsTWVzc2FnaW5n {
+    BackgroundColor: #7d4e00;
+    LineColor: #30363d;
+    LineStyle: 0;
+    LineThickness: 2;
+    FontColor: #e6edf3;
+    FontSize: 24;
+    HorizontalAlignment: center;
+    Shadowing: 0;
+    MaximumWidth: 450;
+  }
+  // Element,Container,Microservice
+  .Element-RWxlbWVudCxDb250YWluZXIsTWljcm9zZXJ2aWNl {
+    BackgroundColor: #0d419d;
+    LineColor: #58a6ff;
+    LineStyle: 0;
+    LineThickness: 2;
+    RoundCorner: 20;
+    FontColor: #e6edf3;
+    FontSize: 24;
+    HorizontalAlignment: center;
+    Shadowing: 0;
+    MaximumWidth: 450;
+  }
+  // Element,Container,Monitoring
+  .Element-RWxlbWVudCxDb250YWluZXIsTW9uaXRvcmluZw== {
+    BackgroundColor: #1f2937;
+    LineColor: #30363d;
+    LineStyle: 0;
+    LineThickness: 2;
+    RoundCorner: 20;
+    FontColor: #e6edf3;
+    FontSize: 24;
+    HorizontalAlignment: center;
+    Shadowing: 0;
+    MaximumWidth: 450;
+  }
+  // Relationship
+  .Relationship-UmVsYXRpb25zaGlw {
+    LineThickness: 2;
+    LineStyle: 10-10;
+    LineColor: #8b949e;
+    FontColor: #8b949e;
+    FontSize: 24;
+    MaximumWidth: 200;
+  }
+  // Element
+  .DeploymentNode-RWxlbWVudA== {
+    BackgroundColor: #1f2937;
+    LineColor: #30363d;
+    LineStyle: 0;
+    LineThickness: 2;
+    FontColor: #e6edf3;
+    FontSize: 24;
+    HorizontalAlignment: center;
+    Shadowing: 0;
+  }
+</style>
+
+rectangle "Kubernetes Cluster\n<size:16>[Deployment Node: Kubernetes]</size>" <<DeploymentNode-RWxlbWVudA==>> as Production.KubernetesCluster {
+  rectangle "Ingress Namespace\n<size:16>[Deployment Node: NGINX Ingress]</size>" <<DeploymentNode-RWxlbWVudA==>> as Production.KubernetesCluster.IngressNamespace {
+    rectangle "==Ingress (NGINX)\n<size:16>[Container: NGINX Ingress]</size>\n\nTLS-терминация, rate limiting, маршрутизация (без авторизации)" <<Element-RWxlbWVudCxDb250YWluZXIsSW5mcmE=>> as Production.KubernetesCluster.IngressNamespace.IngressNGINX_1
+  }
+
+  rectangle "Worker Node Pool\n<size:16>[Deployment Node: Kubernetes Deployment]</size>" <<DeploymentNode-RWxlbWVudA==>> as Production.KubernetesCluster.WorkerNodePool {
+    rectangle "==Auth Service\n<size:16>[Container: Rust + Axum]</size>\n\nTelegram init-data в JWT, сессии, выдача/ротация API-ключей ботов" <<Element-RWxlbWVudCxDb250YWluZXIsTWljcm9zZXJ2aWNl>> as Production.KubernetesCluster.WorkerNodePool.AuthService_1
+    rectangle "==Rental Service\n<size:16>[Container: Rust + Axum]</size>\n\nБронь, старт/финиш, тарифы, outbox" <<Element-RWxlbWVudCxDb250YWluZXIsTWljcm9zZXJ2aWNl>> as Production.KubernetesCluster.WorkerNodePool.RentalService_1
+    rectangle "==Scooter Service\n<size:16>[Container: Rust + Axum]</size>\n\nПарк, статусы, позиции, батарея" <<Element-RWxlbWVudCxDb250YWluZXIsTWljcm9zZXJ2aWNl>> as Production.KubernetesCluster.WorkerNodePool.ScooterService_1
+    rectangle "==Geo Service\n<size:16>[Container: Rust + Axum]</size>\n\nГеозоны, nearby, радиус оператора 10 м" <<Element-RWxlbWVudCxDb250YWluZXIsTWljcm9zZXJ2aWNl>> as Production.KubernetesCluster.WorkerNodePool.GeoService_1
+    rectangle "==Payment Service\n<size:16>[Container: Rust + Axum]</size>\n\nХолд/capture (idempotency_key = ride_id), circuit breaker на YooKassa, подписка 199₽/мес + trial, webhooks" <<Element-RWxlbWVudCxDb250YWluZXIsTWljcm9zZXJ2aWNl>> as Production.KubernetesCluster.WorkerNodePool.PaymentService_1
+    rectangle "==Operator Service\n<size:16>[Container: Rust + Axum]</size>\n\nАвтозадачи при заряде <20%, смены, инвентарь АКБ" <<Element-RWxlbWVudCxDb250YWluZXIsTWljcm9zZXJ2aWNl>> as Production.KubernetesCluster.WorkerNodePool.OperatorService_1
+    rectangle "==Support Service\n<size:16>[Container: Rust + Axum]</size>\n\nТикеты, ручные возвраты" <<Element-RWxlbWVudCxDb250YWluZXIsTWljcm9zZXJ2aWNl>> as Production.KubernetesCluster.WorkerNodePool.SupportService_1
+    rectangle "==Bot Service\n<size:16>[Container: Rust + Axum]</size>\n\n100 эмуляторов, случайное поведение, эмуляция платежей" <<Element-RWxlbWVudCxDb250YWluZXIsTWljcm9zZXJ2aWNl>> as Production.KubernetesCluster.WorkerNodePool.BotService_1
+    rectangle "==Telemetry Service\n<size:16>[Container: Rust + Axum]</size>\n\nMQTT-подписка, дедуп msg_id (SETNX Redis TTL 5 мин), GEOADD позиций, поток телеметрии в Kafka" <<Element-RWxlbWVudCxDb250YWluZXIsTWljcm9zZXJ2aWNl>> as Production.KubernetesCluster.WorkerNodePool.TelemetryService_1
+    rectangle "==Notification Service\n<size:16>[Container: Rust + Axum]</size>\n\nУведомления через Telegram Bot API" <<Element-RWxlbWVudCxDb250YWluZXIsTWljcm9zZXJ2aWNl>> as Production.KubernetesCluster.WorkerNodePool.NotificationService_1
+  }
+
+  rectangle "Data Layer (managed)\n<size:16>[Deployment Node: Managed services]</size>" <<DeploymentNode-RWxlbWVudA==>> as Production.KubernetesCluster.DataLayermanaged {
+    database "==PostgreSQL\n<size:16>[Container: PostgreSQL 16]</size>\n\nSource of truth (в т.ч. брони), по схеме на сервис" <<Element-RWxlbWVudCxDb250YWluZXIsRGF0YVN0b3Jl>> as Production.KubernetesCluster.DataLayermanaged.PostgreSQL_1
+    database "==Redis\n<size:16>[Container: Redis 7 + pipeline]</size>\n\nТолько TTL-триггер брони + GEO-кэш + сессии + rate limiting" <<Element-RWxlbWVudCxDb250YWluZXIsRGF0YVN0b3Jl>> as Production.KubernetesCluster.DataLayermanaged.Redis_1
+    queue "==Kafka\n<size:16>[Container: Kafka]</size>\n\nДоменные события, KRaft-режим" <<Element-RWxlbWVudCxDb250YWluZXIsTWVzc2FnaW5n>> as Production.KubernetesCluster.DataLayermanaged.Kafka_1
+    database "==MinIO (S3)\n<size:16>[Container: S3-compatible]</size>\n\nФото замены АКБ: сырые 90 дней, thumbnails бессрочно" <<Element-RWxlbWVudCxDb250YWluZXIsRGF0YVN0b3Jl>> as Production.KubernetesCluster.DataLayermanaged.MinIOS3_1
+  }
+
+  rectangle "Monitoring Namespace\n<size:16>[Deployment Node: Prometheus + Grafana]</size>" <<DeploymentNode-RWxlbWVudA==>> as Production.KubernetesCluster.MonitoringNamespace {
+    rectangle "==Prometheus\n<size:16>[Container: Prometheus]</size>\n\nScrape /metrics всех сервисов" <<Element-RWxlbWVudCxDb250YWluZXIsTW9uaXRvcmluZw==>> as Production.KubernetesCluster.MonitoringNamespace.Prometheus_1
+    rectangle "==Grafana\n<size:16>[Container: Grafana]</size>\n\nДашборды, алерты в Telegram-бота" <<Element-RWxlbWVudCxDb250YWluZXIsTW9uaXRvcmluZw==>> as Production.KubernetesCluster.MonitoringNamespace.Grafana_1
+  }
+
+}
+
+Production.KubernetesCluster.IngressNamespace.IngressNGINX_1 --> Production.KubernetesCluster.WorkerNodePool.AuthService_1 <<Relationship-UmVsYXRpb25zaGlw>> : "Маршрутизация /auth\n<size:16>[HTTPS/JSON]</size>"
+Production.KubernetesCluster.IngressNamespace.IngressNGINX_1 --> Production.KubernetesCluster.WorkerNodePool.RentalService_1 <<Relationship-UmVsYXRpb25zaGlw>> : "Маршрутизация /rentals\n<size:16>[HTTPS/JSON]</size>"
+Production.KubernetesCluster.IngressNamespace.IngressNGINX_1 --> Production.KubernetesCluster.WorkerNodePool.ScooterService_1 <<Relationship-UmVsYXRpb25zaGlw>> : "Маршрутизация /scooters\n<size:16>[HTTPS/JSON]</size>"
+Production.KubernetesCluster.IngressNamespace.IngressNGINX_1 --> Production.KubernetesCluster.WorkerNodePool.GeoService_1 <<Relationship-UmVsYXRpb25zaGlw>> : "Маршрутизация /geo\n<size:16>[HTTPS/JSON]</size>"
+Production.KubernetesCluster.WorkerNodePool.GeoService_1 --> Production.KubernetesCluster.WorkerNodePool.ScooterService_1 <<Relationship-UmVsYXRpb25zaGlw>> : "Fallback: last_position при пустом GEO-кэше\n<size:16>[gRPC]</size>"
+Production.KubernetesCluster.IngressNamespace.IngressNGINX_1 --> Production.KubernetesCluster.WorkerNodePool.PaymentService_1 <<Relationship-UmVsYXRpb25zaGlw>> : "Маршрутизация /payments\n<size:16>[HTTPS/JSON]</size>"
+Production.KubernetesCluster.WorkerNodePool.RentalService_1 --> Production.KubernetesCluster.WorkerNodePool.PaymentService_1 <<Relationship-UmVsYXRpb25zaGlw>> : "Холд и capture (idempotency key)\n<size:16>[gRPC]</size>"
+Production.KubernetesCluster.IngressNamespace.IngressNGINX_1 --> Production.KubernetesCluster.WorkerNodePool.OperatorService_1 <<Relationship-UmVsYXRpb25zaGlw>> : "Маршрутизация /tasks\n<size:16>[HTTPS/JSON]</size>"
+Production.KubernetesCluster.WorkerNodePool.OperatorService_1 --> Production.KubernetesCluster.WorkerNodePool.GeoService_1 <<Relationship-UmVsYXRpb25zaGlw>> : "Проверка радиуса 10 м\n<size:16>[gRPC]</size>"
+Production.KubernetesCluster.IngressNamespace.IngressNGINX_1 --> Production.KubernetesCluster.WorkerNodePool.SupportService_1 <<Relationship-UmVsYXRpb25zaGlw>> : "Маршрутизация /tickets\n<size:16>[HTTPS/JSON]</size>"
+Production.KubernetesCluster.WorkerNodePool.SupportService_1 --> Production.KubernetesCluster.WorkerNodePool.PaymentService_1 <<Relationship-UmVsYXRpb25zaGlw>> : "Ручной возврат\n<size:16>[gRPC]</size>"
+Production.KubernetesCluster.WorkerNodePool.BotService_1 --> Production.KubernetesCluster.IngressNamespace.IngressNGINX_1 <<Relationship-UmVsYXRpb25zaGlw>> : "Вызывает API как клиент\n<size:16>[HTTPS/JSON + API Key]</size>"
+Production.KubernetesCluster.WorkerNodePool.AuthService_1 --> Production.KubernetesCluster.DataLayermanaged.PostgreSQL_1 <<Relationship-UmVsYXRpb25zaGlw>> : "Пользователи, refresh-сессии\n<size:16>[SQL]</size>"
+Production.KubernetesCluster.WorkerNodePool.RentalService_1 --> Production.KubernetesCluster.DataLayermanaged.PostgreSQL_1 <<Relationship-UmVsYXRpb25zaGlw>> : "Аренды, брони, outbox\n<size:16>[SQL]</size>"
+Production.KubernetesCluster.WorkerNodePool.ScooterService_1 --> Production.KubernetesCluster.DataLayermanaged.PostgreSQL_1 <<Relationship-UmVsYXRpb25zaGlw>> : "Парк, статусы, АКБ\n<size:16>[SQL]</size>"
+Production.KubernetesCluster.WorkerNodePool.GeoService_1 --> Production.KubernetesCluster.DataLayermanaged.PostgreSQL_1 <<Relationship-UmVsYXRpb25zaGlw>> : "Полигоны геозон\n<size:16>[SQL]</size>"
+Production.KubernetesCluster.WorkerNodePool.PaymentService_1 --> Production.KubernetesCluster.DataLayermanaged.PostgreSQL_1 <<Relationship-UmVsYXRpb25zaGlw>> : "Платежи, подписки, trial\n<size:16>[SQL]</size>"
+Production.KubernetesCluster.WorkerNodePool.OperatorService_1 --> Production.KubernetesCluster.DataLayermanaged.PostgreSQL_1 <<Relationship-UmVsYXRpb25zaGlw>> : "Задачи, смены, инвентарь АКБ\n<size:16>[SQL]</size>"
+Production.KubernetesCluster.WorkerNodePool.SupportService_1 --> Production.KubernetesCluster.DataLayermanaged.PostgreSQL_1 <<Relationship-UmVsYXRpb25zaGlw>> : "Тикеты, ручные возвраты\n<size:16>[SQL]</size>"
+Production.KubernetesCluster.WorkerNodePool.AuthService_1 --> Production.KubernetesCluster.DataLayermanaged.Redis_1 <<Relationship-UmVsYXRpb25zaGlw>> : "Blacklist токенов, rate limiting, кэш API-ключей ботов (TTL 5 мин)\n<size:16>[Redis]</size>"
+Production.KubernetesCluster.WorkerNodePool.RentalService_1 --> Production.KubernetesCluster.DataLayermanaged.Redis_1 <<Relationship-UmVsYXRpb25zaGlw>> : "Бронь 5 мин (TTL), лимиты 1+1\n<size:16>[Redis]</size>"
+Production.KubernetesCluster.WorkerNodePool.ScooterService_1 --> Production.KubernetesCluster.DataLayermanaged.Redis_1 <<Relationship-UmVsYXRpb25zaGlw>> : "Кэш позиций города (GEO, pipeline)\n<size:16>[Redis]</size>"
+Production.KubernetesCluster.WorkerNodePool.GeoService_1 --> Production.KubernetesCluster.DataLayermanaged.Redis_1 <<Relationship-UmVsYXRpb25zaGlw>> : "Проверка зон, nearby\n<size:16>[Redis GEO]</size>"
+Production.KubernetesCluster.WorkerNodePool.TelemetryService_1 --> Production.KubernetesCluster.DataLayermanaged.Redis_1 <<Relationship-UmVsYXRpb25zaGlw>> : "Дедуп msg_id (SETNX, TTL 5 мин, QoS 1), GEOADD позиций (SLO p95 < 500 мс от MQTT)\n<size:16>[Redis]</size>"
+Production.KubernetesCluster.WorkerNodePool.RentalService_1 --> Production.KubernetesCluster.DataLayermanaged.Kafka_1 <<Relationship-UmVsYXRpb25zaGlw>> : "rental.events.v1, booking.expired.v1\n<size:16>[Kafka]</size>"
+Production.KubernetesCluster.DataLayermanaged.Kafka_1 --> Production.KubernetesCluster.WorkerNodePool.ScooterService_1 <<Relationship-UmVsYXRpb25zaGlw>> : "Обновление позиций и статусов\n<size:16>[Kafka]</size>"
+Production.KubernetesCluster.WorkerNodePool.PaymentService_1 --> Production.KubernetesCluster.DataLayermanaged.Kafka_1 <<Relationship-UmVsYXRpb25zaGlw>> : "payment.events.v1\n<size:16>[Kafka]</size>"
+Production.KubernetesCluster.DataLayermanaged.Kafka_1 --> Production.KubernetesCluster.WorkerNodePool.OperatorService_1 <<Relationship-UmVsYXRpb25zaGlw>> : "Заряд <20%, задачи диспетчера\n<size:16>[Kafka]</size>"
+Production.KubernetesCluster.WorkerNodePool.OperatorService_1 --> Production.KubernetesCluster.DataLayermanaged.Kafka_1 <<Relationship-UmVsYXRpb25zaGlw>> : "task.assigned.v1, task.completed.v1, shift.closed.v1\n<size:16>[Kafka]</size>"
+Production.KubernetesCluster.DataLayermanaged.Kafka_1 --> Production.KubernetesCluster.WorkerNodePool.SupportService_1 <<Relationship-UmVsYXRpb25zaGlw>> : "Тикеты от ботов и пользователей\n<size:16>[Kafka]</size>"
+Production.KubernetesCluster.WorkerNodePool.BotService_1 --> Production.KubernetesCluster.DataLayermanaged.Kafka_1 <<Relationship-UmVsYXRpb25zaGlw>> : "support.ticket.created.v1\n<size:16>[Kafka]</size>"
+Production.KubernetesCluster.WorkerNodePool.TelemetryService_1 --> Production.KubernetesCluster.DataLayermanaged.Kafka_1 <<Relationship-UmVsYXRpb25zaGlw>> : "scooter.telemetry.v1\n<size:16>[Kafka]</size>"
+Production.KubernetesCluster.DataLayermanaged.Kafka_1 --> Production.KubernetesCluster.WorkerNodePool.NotificationService_1 <<Relationship-UmVsYXRpb25zaGlw>> : "Триггеры: аренда, бронь, задачи\n<size:16>[Kafka]</size>"
+Production.KubernetesCluster.WorkerNodePool.OperatorService_1 --> Production.KubernetesCluster.DataLayermanaged.MinIOS3_1 <<Relationship-UmVsYXRpb25zaGlw>> : "Сохраняет пути фото в задачах\n<size:16>[HTTPS (S3)]</size>"
+Production.KubernetesCluster.MonitoringNamespace.Prometheus_1 --> Production.KubernetesCluster.WorkerNodePool.AuthService_1 <<Relationship-UmVsYXRpb25zaGlw>> : "Scrape /metrics\n<size:16>[HTTP]</size>"
+Production.KubernetesCluster.MonitoringNamespace.Prometheus_1 --> Production.KubernetesCluster.WorkerNodePool.RentalService_1 <<Relationship-UmVsYXRpb25zaGlw>> : "Scrape /metrics\n<size:16>[HTTP]</size>"
+Production.KubernetesCluster.MonitoringNamespace.Prometheus_1 --> Production.KubernetesCluster.WorkerNodePool.ScooterService_1 <<Relationship-UmVsYXRpb25zaGlw>> : "Scrape /metrics\n<size:16>[HTTP]</size>"
+Production.KubernetesCluster.MonitoringNamespace.Prometheus_1 --> Production.KubernetesCluster.WorkerNodePool.GeoService_1 <<Relationship-UmVsYXRpb25zaGlw>> : "Scrape /metrics\n<size:16>[HTTP]</size>"
+Production.KubernetesCluster.MonitoringNamespace.Prometheus_1 --> Production.KubernetesCluster.WorkerNodePool.PaymentService_1 <<Relationship-UmVsYXRpb25zaGlw>> : "Scrape /metrics\n<size:16>[HTTP]</size>"
+Production.KubernetesCluster.MonitoringNamespace.Prometheus_1 --> Production.KubernetesCluster.WorkerNodePool.OperatorService_1 <<Relationship-UmVsYXRpb25zaGlw>> : "Scrape /metrics\n<size:16>[HTTP]</size>"
+Production.KubernetesCluster.MonitoringNamespace.Prometheus_1 --> Production.KubernetesCluster.WorkerNodePool.SupportService_1 <<Relationship-UmVsYXRpb25zaGlw>> : "Scrape /metrics\n<size:16>[HTTP]</size>"
+Production.KubernetesCluster.MonitoringNamespace.Prometheus_1 --> Production.KubernetesCluster.WorkerNodePool.BotService_1 <<Relationship-UmVsYXRpb25zaGlw>> : "Scrape /metrics\n<size:16>[HTTP]</size>"
+Production.KubernetesCluster.MonitoringNamespace.Prometheus_1 --> Production.KubernetesCluster.WorkerNodePool.TelemetryService_1 <<Relationship-UmVsYXRpb25zaGlw>> : "Scrape /metrics\n<size:16>[HTTP]</size>"
+Production.KubernetesCluster.MonitoringNamespace.Prometheus_1 --> Production.KubernetesCluster.WorkerNodePool.NotificationService_1 <<Relationship-UmVsYXRpb25zaGlw>> : "Scrape /metrics\n<size:16>[HTTP]</size>"
+Production.KubernetesCluster.MonitoringNamespace.Grafana_1 --> Production.KubernetesCluster.MonitoringNamespace.Prometheus_1 <<Relationship-UmVsYXRpb25zaGlw>> : "Дашборды\n<size:16>[PromQL (HTTP)]</size>"
+
+@enduml

@@ -1,0 +1,115 @@
+@startuml
+
+set separator none
+hide stereotype
+
+<style>
+  root {
+    BackgroundColor: transparent;
+    FontColor: #8b949e;
+  }
+  // Element
+  .Element-RWxlbWVudA== {
+    BackgroundColor: #1f2937;
+    LineColor: #30363d;
+    LineStyle: 0;
+    LineThickness: 2;
+    FontColor: #e6edf3;
+    FontSize: 24;
+    HorizontalAlignment: center;
+    Shadowing: 0;
+    MaximumWidth: 200;
+  }
+  // Element,External
+  .Element-RWxlbWVudCxFeHRlcm5hbA== {
+    BackgroundColor: #6e40c9;
+    LineColor: #30363d;
+    LineStyle: 0;
+    LineThickness: 2;
+    FontColor: #e6edf3;
+    FontSize: 24;
+    HorizontalAlignment: center;
+    Shadowing: 0;
+    MaximumWidth: 200;
+  }
+  // Element,External,IoT
+  .Element-RWxlbWVudCxFeHRlcm5hbCxJb1Q= {
+    BackgroundColor: #7d4e00;
+    LineColor: #30363d;
+    LineStyle: 0;
+    LineThickness: 2;
+    FontColor: #e6edf3;
+    FontSize: 24;
+    HorizontalAlignment: center;
+    Shadowing: 0;
+    MaximumWidth: 200;
+  }
+  // Element,Person
+  .Element-RWxlbWVudCxQZXJzb24= {
+    BackgroundColor: #1e3a5f;
+    LineColor: #30363d;
+    LineStyle: 0;
+    LineThickness: 2;
+    FontColor: #e6edf3;
+    FontSize: 24;
+    HorizontalAlignment: center;
+    Shadowing: 0;
+    MaximumWidth: 200;
+  }
+  // Element,Person,Bot
+  .Element-RWxlbWVudCxQZXJzb24sQm90 {
+    BackgroundColor: #1e3a5f;
+    LineColor: #30363d;
+    LineStyle: 0;
+    LineThickness: 2;
+    FontColor: #e6edf3;
+    FontSize: 24;
+    HorizontalAlignment: center;
+    Shadowing: 0;
+    MaximumWidth: 200;
+  }
+  // Element,Person,Support
+  .Element-RWxlbWVudCxQZXJzb24sU3VwcG9ydA== {
+    BackgroundColor: #1e3a5f;
+    LineColor: #30363d;
+    LineStyle: 0;
+    LineThickness: 2;
+    FontColor: #e6edf3;
+    FontSize: 24;
+    HorizontalAlignment: center;
+    Shadowing: 0;
+    MaximumWidth: 200;
+  }
+  // Relationship
+  .Relationship-UmVsYXRpb25zaGlw {
+    LineThickness: 2;
+    LineStyle: 10-10;
+    LineColor: #8b949e;
+    FontColor: #8b949e;
+    FontSize: 24;
+    MaximumWidth: 200;
+  }
+  // transparent element for relationships in legend
+  .Element-Transparent {
+    BackgroundColor: transparent;
+    LineColor: transparent;
+    FontColor: transparent;
+  }
+</style>
+
+rectangle "==Element" <<Element-RWxlbWVudA==>>
+
+rectangle "==External" <<Element-RWxlbWVudCxFeHRlcm5hbA==>>
+
+database "==External, IoT" <<Element-RWxlbWVudCxFeHRlcm5hbCxJb1Q=>>
+
+person "==Person" <<Element-RWxlbWVudCxQZXJzb24=>>
+
+person "==Person, Bot" <<Element-RWxlbWVudCxQZXJzb24sQm90>>
+
+person "==Person, Support" <<Element-RWxlbWVudCxQZXJzb24sU3VwcG9ydA==>>
+
+rectangle "." <<.Element-Transparent>> as 1
+1 --> 1 <<Relationship-UmVsYXRpb25zaGlw>> : "Relationship"
+
+@enduml

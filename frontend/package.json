@@ -1,0 +1,19 @@
+{
+  "name": "scootly-frontend",
+  "version": "0.1.0",
+  "private": true,
+  "packageManager": "pnpm@9.0.0",
+  "workspaces": ["miniapp", "mobile", "shared"],
+  "scripts": {
+    "dev:miniapp": "pnpm --filter miniapp dev",
+    "dev:mobile": "pnpm --filter mobile start",
+    "build": "pnpm --filter shared build && pnpm --filter miniapp build",
+    "lint": "pnpm -r lint",
+    "test": "pnpm -r test",
+    "format": "prettier --write \"**/*.{ts,tsx,json,md}\""
+  },
+  "devDependencies": {
+    "prettier": "^3.2.0",
+    "typescript": "^5.4.0"
+  }
+}

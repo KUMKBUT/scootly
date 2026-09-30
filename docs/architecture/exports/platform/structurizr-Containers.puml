@@ -1,0 +1,262 @@
+@startuml
+title <size:24>Container View: Scooter Rental Platform</size>\n<size:24>Микросервисы, клиенты и инфраструктура</size>
+
+set separator none
+left to right direction
+skinparam ranksep 20
+skinparam nodesep 5
+hide stereotype
+
+<style>
+  root {
+    BackgroundColor: transparent;
+    FontColor: #8b949e;
+  }
+  // Element,Container,DataStore
+  .Element-RWxlbWVudCxDb250YWluZXIsRGF0YVN0b3Jl {
+    BackgroundColor: #7d4e00;
+    LineColor: #30363d;
+    LineStyle: 0;
+    LineThickness: 2;
+    FontColor: #e6edf3;
+    FontSize: 24;
+    HorizontalAlignment: center;
+    Shadowing: 0;
+    MaximumWidth: 450;
+  }
+  // Element,Container,Frontend
+  .Element-RWxlbWVudCxDb250YWluZXIsRnJvbnRlbmQ= {
+    BackgroundColor: #0d419d;
+    LineColor: #58a6ff;
+    LineStyle: 0;
+    LineThickness: 2;
+    FontColor: #e6edf3;
+    FontSize: 24;
+    HorizontalAlignment: center;
+    Shadowing: 0;
+    MaximumWidth: 450;
+  }
+  // Element,Container,Infra
+  .Element-RWxlbWVudCxDb250YWluZXIsSW5mcmE= {
+    BackgroundColor: #1f2937;
+    LineColor: #30363d;
+    LineStyle: 0;
+    LineThickness: 2;
+    RoundCorner: 20;
+    FontColor: #e6edf3;
+    FontSize: 24;
+    HorizontalAlignment: center;
+    Shadowing: 0;
+    MaximumWidth: 450;
+  }
+  // Element,Container,Messaging
+  .Element-RWxlbWVudCxDb250YWluZXIsTWVzc2FnaW5n {
+    BackgroundColor: #7d4e00;
+    LineColor: #30363d;
+    LineStyle: 0;
+    LineThickness: 2;
+    FontColor: #e6edf3;
+    FontSize: 24;
+    HorizontalAlignment: center;
+    Shadowing: 0;
+    MaximumWidth: 450;
+  }
+  // Element,Container,Microservice
+  .Element-RWxlbWVudCxDb250YWluZXIsTWljcm9zZXJ2aWNl {
+    BackgroundColor: #0d419d;
+    LineColor: #58a6ff;
+    LineStyle: 0;
+    LineThickness: 2;
+    RoundCorner: 20;
+    FontColor: #e6edf3;
+    FontSize: 24;
+    HorizontalAlignment: center;
+    Shadowing: 0;
+    MaximumWidth: 450;
+  }
+  // Element,Container,Monitoring
+  .Element-RWxlbWVudCxDb250YWluZXIsTW9uaXRvcmluZw== {
+    BackgroundColor: #1f2937;
+    LineColor: #30363d;
+    LineStyle: 0;
+    LineThickness: 2;
+    RoundCorner: 20;
+    FontColor: #e6edf3;
+    FontSize: 24;
+    HorizontalAlignment: center;
+    Shadowing: 0;
+    MaximumWidth: 450;
+  }
+  // Element,Person
+  .Element-RWxlbWVudCxQZXJzb24= {
+    BackgroundColor: #1e3a5f;
+    LineColor: #30363d;
+    LineStyle: 0;
+    LineThickness: 2;
+    FontColor: #e6edf3;
+    FontSize: 24;
+    HorizontalAlignment: center;
+    Shadowing: 0;
+    MaximumWidth: 450;
+  }
+  // Element,Person,Bot
+  .Element-RWxlbWVudCxQZXJzb24sQm90 {
+    BackgroundColor: #1e3a5f;
+    LineColor: #30363d;
+    LineStyle: 0;
+    LineThickness: 2;
+    FontColor: #e6edf3;
+    FontSize: 24;
+    HorizontalAlignment: center;
+    Shadowing: 0;
+    MaximumWidth: 450;
+  }
+  // Element,Person,Support
+  .Element-RWxlbWVudCxQZXJzb24sU3VwcG9ydA== {
+    BackgroundColor: #1e3a5f;
+    LineColor: #30363d;
+    LineStyle: 0;
+    LineThickness: 2;
+    FontColor: #e6edf3;
+    FontSize: 24;
+    HorizontalAlignment: center;
+    Shadowing: 0;
+    MaximumWidth: 450;
+  }
+  // Element,Software System,External
+  .Element-RWxlbWVudCxTb2Z0d2FyZSBTeXN0ZW0sRXh0ZXJuYWw= {
+    BackgroundColor: #6e40c9;
+    LineColor: #30363d;
+    LineStyle: 0;
+    LineThickness: 2;
+    FontColor: #e6edf3;
+    FontSize: 24;
+    HorizontalAlignment: center;
+    Shadowing: 0;
+    MaximumWidth: 450;
+  }
+  // Element,Software System,External,IoT
+  .Element-RWxlbWVudCxTb2Z0d2FyZSBTeXN0ZW0sRXh0ZXJuYWwsSW9U {
+    BackgroundColor: #7d4e00;
+    LineColor: #30363d;
+    LineStyle: 0;
+    LineThickness: 2;
+    FontColor: #e6edf3;
+    FontSize: 24;
+    HorizontalAlignment: center;
+    Shadowing: 0;
+    MaximumWidth: 450;
+  }
+  // Relationship
+  .Relationship-UmVsYXRpb25zaGlw {
+    LineThickness: 2;
+    LineStyle: 10-10;
+    LineColor: #8b949e;
+    FontColor: #8b949e;
+    FontSize: 24;
+    MaximumWidth: 200;
+  }
+  // Scooter Rental Platform
+  .Boundary-U2Nvb3RlciBSZW50YWwgUGxhdGZvcm0= {
+    BackgroundColor: #161b22;
+    LineColor: #30363d;
+    LineStyle: 0;
+    LineThickness: 2;
+    FontColor: #e6edf3;
+    FontSize: 24;
+    HorizontalAlignment: center;
+    Shadowing: 0;
+  }
+</style>
+
+person "==Пользователь\n<size:16>[Person]</size>\n\nАрендует самокат через Telegram Mini App" <<Element-RWxlbWVudCxQZXJzb24=>> as Пользователь
+person "==Оператор\n<size:16>[Person]</size>\n\nЗамена АКБ, задачи, закрытие смены (RN-приложение, offline-first)" <<Element-RWxlbWVudCxQZXJzb24=>> as Оператор
+person "==Бот-арендатор\n<size:16>[Person]</size>\n\nЭмулирует пользователей, создаёт обращения в поддержку" <<Element-RWxlbWVudCxQZXJzb24sQm90>> as Ботарендатор
+person "==Админ поддержки\n<size:16>[Person]</size>\n\nТикеты, ручные возвраты" <<Element-RWxlbWVudCxQZXJzb24sU3VwcG9ydA==>> as Админподдержки
+rectangle "==Telegram Platform\n<size:16>[Software System]</size>\n\nХостинг Mini App, Bot API для уведомлений" <<Element-RWxlbWVudCxTb2Z0d2FyZSBTeXN0ZW0sRXh0ZXJuYWw=>> as TelegramPlatform
+rectangle "==YooKassa\n<size:16>[Software System]</size>\n\nЭквайринг: холд/capture, рекурренты, webhooks" <<Element-RWxlbWVudCxTb2Z0d2FyZSBTeXN0ZW0sRXh0ZXJuYWw=>> as YooKassa
+database "==Scooter IoT Device\n<size:16>[Software System]</size>\n\nЭмулированные самокаты: GPS, замок, АКБ" <<Element-RWxlbWVudCxTb2Z0d2FyZSBTeXN0ZW0sRXh0ZXJuYWwsSW9U>> as ScooterIoTDevice
+
+rectangle "Scooter Rental Platform\n<size:16>[Software System]</size>" <<Boundary-U2Nvb3RlciBSZW50YWwgUGxhdGZvcm0=>> {
+  rectangle "==Telegram Mini App\n<size:16>[Container: React + TS + Tailwind]</size>\n\nКарта, бронь 5 мин, аренда, оплата" <<Element-RWxlbWVudCxDb250YWluZXIsRnJvbnRlbmQ=>> as ScooterRentalPlatform.TelegramMiniApp
+  rectangle "==Operator App\n<size:16>[Container: React Native]</size>\n\nЗадачи АКБ, QR + фото, ShiftReport/Inventory/Issues, offline-first" <<Element-RWxlbWVudCxDb250YWluZXIsRnJvbnRlbmQ=>> as ScooterRentalPlatform.OperatorApp
+  rectangle "==Ingress (NGINX)\n<size:16>[Container: NGINX Ingress]</size>\n\nTLS-терминация, rate limiting, маршрутизация (без авторизации)" <<Element-RWxlbWVudCxDb250YWluZXIsSW5mcmE=>> as ScooterRentalPlatform.IngressNGINX
+  rectangle "==Auth Service\n<size:16>[Container: Rust + Axum]</size>\n\nTelegram init-data в JWT, сессии, выдача/ротация API-ключей ботов" <<Element-RWxlbWVudCxDb250YWluZXIsTWljcm9zZXJ2aWNl>> as ScooterRentalPlatform.AuthService
+  rectangle "==Rental Service\n<size:16>[Container: Rust + Axum]</size>\n\nБронь, старт/финиш, тарифы, outbox" <<Element-RWxlbWVudCxDb250YWluZXIsTWljcm9zZXJ2aWNl>> as ScooterRentalPlatform.RentalService
+  rectangle "==Scooter Service\n<size:16>[Container: Rust + Axum]</size>\n\nПарк, статусы, позиции, батарея" <<Element-RWxlbWVudCxDb250YWluZXIsTWljcm9zZXJ2aWNl>> as ScooterRentalPlatform.ScooterService
+  rectangle "==Geo Service\n<size:16>[Container: Rust + Axum]</size>\n\nГеозоны, nearby, радиус оператора 10 м" <<Element-RWxlbWVudCxDb250YWluZXIsTWljcm9zZXJ2aWNl>> as ScooterRentalPlatform.GeoService
+  rectangle "==Payment Service\n<size:16>[Container: Rust + Axum]</size>\n\nХолд/capture (idempotency_key = ride_id), circuit breaker на YooKassa, подписка 199₽/мес + trial, webhooks" <<Element-RWxlbWVudCxDb250YWluZXIsTWljcm9zZXJ2aWNl>> as ScooterRentalPlatform.PaymentService
+  rectangle "==Operator Service\n<size:16>[Container: Rust + Axum]</size>\n\nАвтозадачи при заряде <20%, смены, инвентарь АКБ" <<Element-RWxlbWVudCxDb250YWluZXIsTWljcm9zZXJ2aWNl>> as ScooterRentalPlatform.OperatorService
+  rectangle "==Support Service\n<size:16>[Container: Rust + Axum]</size>\n\nТикеты, ручные возвраты" <<Element-RWxlbWVudCxDb250YWluZXIsTWljcm9zZXJ2aWNl>> as ScooterRentalPlatform.SupportService
+  rectangle "==Bot Service\n<size:16>[Container: Rust + Axum]</size>\n\n100 эмуляторов, случайное поведение, эмуляция платежей" <<Element-RWxlbWVudCxDb250YWluZXIsTWljcm9zZXJ2aWNl>> as ScooterRentalPlatform.BotService
+  rectangle "==Telemetry Service\n<size:16>[Container: Rust + Axum]</size>\n\nMQTT-подписка, дедуп msg_id (SETNX Redis TTL 5 мин), GEOADD позиций, поток телеметрии в Kafka" <<Element-RWxlbWVudCxDb250YWluZXIsTWljcm9zZXJ2aWNl>> as ScooterRentalPlatform.TelemetryService
+  rectangle "==Notification Service\n<size:16>[Container: Rust + Axum]</size>\n\nУведомления через Telegram Bot API" <<Element-RWxlbWVudCxDb250YWluZXIsTWljcm9zZXJ2aWNl>> as ScooterRentalPlatform.NotificationService
+  database "==PostgreSQL\n<size:16>[Container: PostgreSQL 16]</size>\n\nSource of truth (в т.ч. брони), по схеме на сервис" <<Element-RWxlbWVudCxDb250YWluZXIsRGF0YVN0b3Jl>> as ScooterRentalPlatform.PostgreSQL
+  database "==Redis\n<size:16>[Container: Redis 7 + pipeline]</size>\n\nТолько TTL-триггер брони + GEO-кэш + сессии + rate limiting" <<Element-RWxlbWVudCxDb250YWluZXIsRGF0YVN0b3Jl>> as ScooterRentalPlatform.Redis
+  queue "==Kafka\n<size:16>[Container: Kafka]</size>\n\nДоменные события, KRaft-режим" <<Element-RWxlbWVudCxDb250YWluZXIsTWVzc2FnaW5n>> as ScooterRentalPlatform.Kafka
+  database "==MinIO (S3)\n<size:16>[Container: S3-compatible]</size>\n\nФото замены АКБ: сырые 90 дней, thumbnails бессрочно" <<Element-RWxlbWVudCxDb250YWluZXIsRGF0YVN0b3Jl>> as ScooterRentalPlatform.MinIOS3
+  rectangle "==Prometheus\n<size:16>[Container: Prometheus]</size>\n\nScrape /metrics всех сервисов" <<Element-RWxlbWVudCxDb250YWluZXIsTW9uaXRvcmluZw==>> as ScooterRentalPlatform.Prometheus
+  rectangle "==Grafana\n<size:16>[Container: Grafana]</size>\n\nДашборды, алерты в Telegram-бота" <<Element-RWxlbWVudCxDb250YWluZXIsTW9uaXRvcmluZw==>> as ScooterRentalPlatform.Grafana
+}
+
+ScooterRentalPlatform.Kafka --> ScooterRentalPlatform.NotificationService <<Relationship-UmVsYXRpb25zaGlw>> : "Триггеры: аренда, бронь, задачи\n<size:16>[Kafka]</size>"
+ScooterRentalPlatform.NotificationService --> TelegramPlatform <<Relationship-UmVsYXRpb25zaGlw>> : "Сообщения через Bot API\n<size:16>[HTTPS]</size>"
+ScooterRentalPlatform.Prometheus --> ScooterRentalPlatform.AuthService <<Relationship-UmVsYXRpb25zaGlw>> : "Scrape /metrics\n<size:16>[HTTP]</size>"
+ScooterRentalPlatform.Prometheus --> ScooterRentalPlatform.RentalService <<Relationship-UmVsYXRpb25zaGlw>> : "Scrape /metrics\n<size:16>[HTTP]</size>"
+ScooterRentalPlatform.Prometheus --> ScooterRentalPlatform.ScooterService <<Relationship-UmVsYXRpb25zaGlw>> : "Scrape /metrics\n<size:16>[HTTP]</size>"
+ScooterRentalPlatform.Prometheus --> ScooterRentalPlatform.GeoService <<Relationship-UmVsYXRpb25zaGlw>> : "Scrape /metrics\n<size:16>[HTTP]</size>"
+ScooterRentalPlatform.Prometheus --> ScooterRentalPlatform.PaymentService <<Relationship-UmVsYXRpb25zaGlw>> : "Scrape /metrics\n<size:16>[HTTP]</size>"
+ScooterRentalPlatform.Prometheus --> ScooterRentalPlatform.OperatorService <<Relationship-UmVsYXRpb25zaGlw>> : "Scrape /metrics\n<size:16>[HTTP]</size>"
+ScooterRentalPlatform.Prometheus --> ScooterRentalPlatform.SupportService <<Relationship-UmVsYXRpb25zaGlw>> : "Scrape /metrics\n<size:16>[HTTP]</size>"
+ScooterRentalPlatform.Prometheus --> ScooterRentalPlatform.BotService <<Relationship-UmVsYXRpb25zaGlw>> : "Scrape /metrics\n<size:16>[HTTP]</size>"
+ScooterRentalPlatform.Prometheus --> ScooterRentalPlatform.TelemetryService <<Relationship-UmVsYXRpb25zaGlw>> : "Scrape /metrics\n<size:16>[HTTP]</size>"
+ScooterRentalPlatform.Prometheus --> ScooterRentalPlatform.NotificationService <<Relationship-UmVsYXRpb25zaGlw>> : "Scrape /metrics\n<size:16>[HTTP]</size>"
+ScooterRentalPlatform.Grafana --> ScooterRentalPlatform.Prometheus <<Relationship-UmVsYXRpb25zaGlw>> : "Дашборды\n<size:16>[PromQL (HTTP)]</size>"
+Пользователь --> ScooterRentalPlatform.TelegramMiniApp <<Relationship-UmVsYXRpb25zaGlw>> : "Открывает карту, бронирует, оплачивает\n<size:16>[Telegram WebView (HTTPS)]</size>"
+Пользователь --> TelegramPlatform <<Relationship-UmVsYXRpb25zaGlw>> : "Открывает бота и Mini App\n<size:16>[Telegram]</size>"
+Оператор --> ScooterRentalPlatform.OperatorApp <<Relationship-UmVsYXRpb25zaGlw>> : "Берёт задачи, сканирует QR, грузит фото\n<size:16>[HTTPS]</size>"
+Ботарендатор --> ScooterRentalPlatform.BotService <<Relationship-UmVsYXRpb25zaGlw>> : "Эмулирует аренду и ошибки\n<size:16>[HTTPS + API Key]</size>"
+Админподдержки --> ScooterRentalPlatform.OperatorApp <<Relationship-UmVsYXRpb25zaGlw>> : "Обрабатывает тикеты (роль поддержки)\n<size:16>[HTTPS]</size>"
+ScooterRentalPlatform.TelegramMiniApp --> ScooterRentalPlatform.IngressNGINX <<Relationship-UmVsYXRpb25zaGlw>> : "REST API\n<size:16>[HTTPS/JSON]</size>"
+ScooterRentalPlatform.OperatorApp --> ScooterRentalPlatform.IngressNGINX <<Relationship-UmVsYXRpb25zaGlw>> : "REST API\n<size:16>[HTTPS/JSON]</size>"
+ScooterRentalPlatform.BotService --> ScooterRentalPlatform.IngressNGINX <<Relationship-UmVsYXRpb25zaGlw>> : "Вызывает API как клиент\n<size:16>[HTTPS/JSON + API Key]</size>"
+ScooterRentalPlatform.IngressNGINX --> ScooterRentalPlatform.AuthService <<Relationship-UmVsYXRpb25zaGlw>> : "Маршрутизация /auth\n<size:16>[HTTPS/JSON]</size>"
+ScooterRentalPlatform.IngressNGINX --> ScooterRentalPlatform.RentalService <<Relationship-UmVsYXRpb25zaGlw>> : "Маршрутизация /rentals\n<size:16>[HTTPS/JSON]</size>"
+ScooterRentalPlatform.IngressNGINX --> ScooterRentalPlatform.ScooterService <<Relationship-UmVsYXRpb25zaGlw>> : "Маршрутизация /scooters\n<size:16>[HTTPS/JSON]</size>"
+ScooterRentalPlatform.IngressNGINX --> ScooterRentalPlatform.GeoService <<Relationship-UmVsYXRpb25zaGlw>> : "Маршрутизация /geo\n<size:16>[HTTPS/JSON]</size>"
+ScooterRentalPlatform.IngressNGINX --> ScooterRentalPlatform.PaymentService <<Relationship-UmVsYXRpb25zaGlw>> : "Маршрутизация /payments\n<size:16>[HTTPS/JSON]</size>"
+ScooterRentalPlatform.IngressNGINX --> ScooterRentalPlatform.SupportService <<Relationship-UmVsYXRpb25zaGlw>> : "Маршрутизация /tickets\n<size:16>[HTTPS/JSON]</size>"
+ScooterRentalPlatform.IngressNGINX --> ScooterRentalPlatform.OperatorService <<Relationship-UmVsYXRpb25zaGlw>> : "Маршрутизация /tasks\n<size:16>[HTTPS/JSON]</size>"
+ScooterRentalPlatform.AuthService --> TelegramPlatform <<Relationship-UmVsYXRpb25zaGlw>> : "Проверка init-data\n<size:16>[HTTPS (Bot API)]</size>"
+ScooterRentalPlatform.AuthService --> ScooterRentalPlatform.PostgreSQL <<Relationship-UmVsYXRpb25zaGlw>> : "Пользователи, refresh-сессии\n<size:16>[SQL]</size>"
+ScooterRentalPlatform.AuthService --> ScooterRentalPlatform.Redis <<Relationship-UmVsYXRpb25zaGlw>> : "Blacklist токенов, rate limiting, кэш API-ключей ботов (TTL 5 мин)\n<size:16>[Redis]</size>"
+ScooterRentalPlatform.RentalService --> ScooterRentalPlatform.Redis <<Relationship-UmVsYXRpb25zaGlw>> : "Бронь 5 мин (TTL), лимиты 1+1\n<size:16>[Redis]</size>"
+ScooterRentalPlatform.RentalService --> ScooterRentalPlatform.PostgreSQL <<Relationship-UmVsYXRpb25zaGlw>> : "Аренды, брони, outbox\n<size:16>[SQL]</size>"
+ScooterRentalPlatform.RentalService --> ScooterRentalPlatform.PaymentService <<Relationship-UmVsYXRpb25zaGlw>> : "Холд и capture (idempotency key)\n<size:16>[gRPC]</size>"
+ScooterRentalPlatform.RentalService --> ScooterIoTDevice <<Relationship-UmVsYXRpb25zaGlw>> : "Команды unlock/lock\n<size:16>[MQTT (QoS 1)]</size>"
+ScooterRentalPlatform.RentalService --> ScooterRentalPlatform.Kafka <<Relationship-UmVsYXRpb25zaGlw>> : "rental.events.v1, booking.expired.v1\n<size:16>[Kafka]</size>"
+ScooterRentalPlatform.ScooterService --> ScooterRentalPlatform.PostgreSQL <<Relationship-UmVsYXRpb25zaGlw>> : "Парк, статусы, АКБ\n<size:16>[SQL]</size>"
+ScooterRentalPlatform.ScooterService --> ScooterRentalPlatform.Redis <<Relationship-UmVsYXRpb25zaGlw>> : "Кэш позиций города (GEO, pipeline)\n<size:16>[Redis]</size>"
+ScooterRentalPlatform.GeoService --> ScooterRentalPlatform.PostgreSQL <<Relationship-UmVsYXRpb25zaGlw>> : "Полигоны геозон\n<size:16>[SQL]</size>"
+ScooterRentalPlatform.GeoService --> ScooterRentalPlatform.Redis <<Relationship-UmVsYXRpb25zaGlw>> : "Проверка зон, nearby\n<size:16>[Redis GEO]</size>"
+ScooterRentalPlatform.GeoService --> ScooterRentalPlatform.ScooterService <<Relationship-UmVsYXRpb25zaGlw>> : "Fallback: last_position при пустом GEO-кэше\n<size:16>[gRPC]</size>"
+ScooterRentalPlatform.OperatorService --> ScooterRentalPlatform.GeoService <<Relationship-UmVsYXRpb25zaGlw>> : "Проверка радиуса 10 м\n<size:16>[gRPC]</size>"
+ScooterRentalPlatform.PaymentService --> ScooterRentalPlatform.PostgreSQL <<Relationship-UmVsYXRpb25zaGlw>> : "Платежи, подписки, trial\n<size:16>[SQL]</size>"
+ScooterRentalPlatform.PaymentService --> YooKassa <<Relationship-UmVsYXRpb25zaGlw>> : "Холд/capture, рекурренты, возвраты\n<size:16>[HTTPS/REST]</size>"
+YooKassa --> ScooterRentalPlatform.PaymentService <<Relationship-UmVsYXRpb25zaGlw>> : "Webhooks (возможен out-of-order, разбор по статусу)\n<size:16>[HTTPS]</size>"
+ScooterRentalPlatform.PaymentService --> ScooterRentalPlatform.Kafka <<Relationship-UmVsYXRpb25zaGlw>> : "payment.events.v1\n<size:16>[Kafka]</size>"
+ScooterRentalPlatform.TelemetryService --> ScooterIoTDevice <<Relationship-UmVsYXRpb25zaGlw>> : "Подписка на телеметрию\n<size:16>[MQTT]</size>"
+ScooterRentalPlatform.TelemetryService --> ScooterRentalPlatform.Redis <<Relationship-UmVsYXRpb25zaGlw>> : "Дедуп msg_id (SETNX, TTL 5 мин, QoS 1), GEOADD позиций (SLO p95 < 500 мс от MQTT)\n<size:16>[Redis]</size>"
+ScooterRentalPlatform.TelemetryService --> ScooterRentalPlatform.Kafka <<Relationship-UmVsYXRpb25zaGlw>> : "scooter.telemetry.v1\n<size:16>[Kafka]</size>"
+ScooterRentalPlatform.Kafka --> ScooterRentalPlatform.ScooterService <<Relationship-UmVsYXRpb25zaGlw>> : "Обновление позиций и статусов\n<size:16>[Kafka]</size>"
+ScooterRentalPlatform.OperatorService --> ScooterRentalPlatform.PostgreSQL <<Relationship-UmVsYXRpb25zaGlw>> : "Задачи, смены, инвентарь АКБ\n<size:16>[SQL]</size>"
+ScooterRentalPlatform.OperatorService --> ScooterRentalPlatform.MinIOS3 <<Relationship-UmVsYXRpb25zaGlw>> : "Сохраняет пути фото в задачах\n<size:16>[HTTPS (S3)]</size>"
+ScooterRentalPlatform.OperatorService --> ScooterRentalPlatform.Kafka <<Relationship-UmVsYXRpb25zaGlw>> : "task.assigned.v1, task.completed.v1, shift.closed.v1\n<size:16>[Kafka]</size>"
+ScooterRentalPlatform.Kafka --> ScooterRentalPlatform.OperatorService <<Relationship-UmVsYXRpb25zaGlw>> : "Заряд <20%, задачи диспетчера\n<size:16>[Kafka]</size>"
+ScooterRentalPlatform.OperatorApp --> ScooterRentalPlatform.MinIOS3 <<Relationship-UmVsYXRpb25zaGlw>> : "Загрузка фото замены\n<size:16>[HTTPS (S3)]</size>"
+ScooterRentalPlatform.BotService --> ScooterRentalPlatform.Kafka <<Relationship-UmVsYXRpb25zaGlw>> : "support.ticket.created.v1\n<size:16>[Kafka]</size>"
+ScooterRentalPlatform.Kafka --> ScooterRentalPlatform.SupportService <<Relationship-UmVsYXRpb25zaGlw>> : "Тикеты от ботов и пользователей\n<size:16>[Kafka]</size>"
+ScooterRentalPlatform.SupportService --> ScooterRentalPlatform.PostgreSQL <<Relationship-UmVsYXRpb25zaGlw>> : "Тикеты, ручные возвраты\n<size:16>[SQL]</size>"
+ScooterRentalPlatform.SupportService --> ScooterRentalPlatform.PaymentService <<Relationship-UmVsYXRpb25zaGlw>> : "Ручной возврат\n<size:16>[gRPC]</size>"
+
+@enduml

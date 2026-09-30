@@ -1,0 +1,26 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  - job_name: prometheus
+    static_configs:
+      - targets: ['localhost:9090']
+
+  - job_name: cadvisor
+    static_configs:
+      - targets: ['cadvisor:8080']
+
+  - job_name: scootly-services
+    static_configs:
+      - targets:
+          - 'auth-service:9000'
+          - 'rental-service:9000'
+          - 'scooter-service:9000'
+          - 'operator-service:9000'
+          - 'support-service:9000'
+          - 'bot-service:9000'
+          - 'payment-service:9000'
+          - 'geo-service:9000'
+          - 'telemetry-service:9000'
+          - 'notification-service:9000'

@@ -1,0 +1,10 @@
+[package]
+name = "redis-client"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+redis.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+anyhow.workspace = true

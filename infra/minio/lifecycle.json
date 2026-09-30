@@ -1,0 +1,17 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "ID": "expire-raw-photos",
+      "Status": "Enabled",
+      "Filter": { "Prefix": "raw/" },
+      "Expiration": { "Days": 90 }
+    },
+    {
+      "ID": "keep-thumbnails",
+      "Status": "Enabled",
+      "Filter": { "Prefix": "thumbs/" },
+      "Expiration": { "ExpiredObjectDeleteMarker": false }
+    }
+  ]
+}

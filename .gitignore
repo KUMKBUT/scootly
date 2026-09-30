@@ -1,0 +1,47 @@
+# Rust
+target/
+**/*.rs.bk
+# Cargo.lock оставляем для бинарей, игнорируем только для библиотек — здесь не игнорируем
+
+# Node
+node_modules/
+dist/
+build/
+.pnp
+.pnp.js
+*.local
+
+# pnpm
+pnpm-lock.yaml
+.pnpm-store/
+
+# Env
+.env
+.env.local
+.env.*.local
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# K8s secrets
+infra/k8s/secrets/*
+!infra/k8s/secrets/.gitkeep
+sealed-secrets/*.yaml
+*.key
+*.pem
+
+# Misc
+*.log
+coverage/
+
+# Structurizr server generated files (workspace.json, .structurizr/ cache)
+workspace.json
+.structurizr/

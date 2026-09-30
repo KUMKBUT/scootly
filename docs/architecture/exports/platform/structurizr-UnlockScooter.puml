@@ -1,0 +1,173 @@
+@startuml
+title <size:24>Dynamic View: Scooter Rental Platform</size>\n<size:24>Разблокировка самоката</size>
+
+set separator none
+left to right direction
+skinparam ranksep 20
+skinparam nodesep 5
+hide stereotype
+
+<style>
+  root {
+    BackgroundColor: transparent;
+    FontColor: #8b949e;
+  }
+  // Element,Container,DataStore
+  .Element-RWxlbWVudCxDb250YWluZXIsRGF0YVN0b3Jl {
+    BackgroundColor: #7d4e00;
+    LineColor: #30363d;
+    LineStyle: 0;
+    LineThickness: 2;
+    FontColor: #e6edf3;
+    FontSize: 24;
+    HorizontalAlignment: center;
+    Shadowing: 0;
+    MaximumWidth: 450;
+  }
+  // Element,Container,Frontend
+  .Element-RWxlbWVudCxDb250YWluZXIsRnJvbnRlbmQ= {
+    BackgroundColor: #0d419d;
+    LineColor: #58a6ff;
+    LineStyle: 0;
+    LineThickness: 2;
+    FontColor: #e6edf3;
+    FontSize: 24;
+    HorizontalAlignment: center;
+    Shadowing: 0;
+    MaximumWidth: 450;
+  }
+  // Element,Container,Infra
+  .Element-RWxlbWVudCxDb250YWluZXIsSW5mcmE= {
+    BackgroundColor: #1f2937;
+    LineColor: #30363d;
+    LineStyle: 0;
+    LineThickness: 2;
+    RoundCorner: 20;
+    FontColor: #e6edf3;
+    FontSize: 24;
+    HorizontalAlignment: center;
+    Shadowing: 0;
+    MaximumWidth: 450;
+  }
+  // Element,Container,IoT
+  .Element-RWxlbWVudCxDb250YWluZXIsSW9U {
+    BackgroundColor: #7d4e00;
+    LineColor: #30363d;
+    LineStyle: 0;
+    LineThickness: 2;
+    FontColor: #e6edf3;
+    FontSize: 24;
+    HorizontalAlignment: center;
+    Shadowing: 0;
+    MaximumWidth: 450;
+  }
+  // Element,Container,Messaging
+  .Element-RWxlbWVudCxDb250YWluZXIsTWVzc2FnaW5n {
+    BackgroundColor: #7d4e00;
+    LineColor: #30363d;
+    LineStyle: 0;
+    LineThickness: 2;
+    FontColor: #e6edf3;
+    FontSize: 24;
+    HorizontalAlignment: center;
+    Shadowing: 0;
+    MaximumWidth: 450;
+  }
+  // Element,Container,Microservice
+  .Element-RWxlbWVudCxDb250YWluZXIsTWljcm9zZXJ2aWNl {
+    BackgroundColor: #0d419d;
+    LineColor: #58a6ff;
+    LineStyle: 0;
+    LineThickness: 2;
+    RoundCorner: 20;
+    FontColor: #e6edf3;
+    FontSize: 24;
+    HorizontalAlignment: center;
+    Shadowing: 0;
+    MaximumWidth: 450;
+  }
+  // Element,Person
+  .Element-RWxlbWVudCxQZXJzb24= {
+    BackgroundColor: #1e3a5f;
+    LineColor: #30363d;
+    LineStyle: 0;
+    LineThickness: 2;
+    FontColor: #e6edf3;
+    FontSize: 24;
+    HorizontalAlignment: center;
+    Shadowing: 0;
+    MaximumWidth: 450;
+  }
+  // Element,Software System,External
+  .Element-RWxlbWVudCxTb2Z0d2FyZSBTeXN0ZW0sRXh0ZXJuYWw= {
+    BackgroundColor: #6e40c9;
+    LineColor: #30363d;
+    LineStyle: 0;
+    LineThickness: 2;
+    FontColor: #e6edf3;
+    FontSize: 24;
+    HorizontalAlignment: center;
+    Shadowing: 0;
+    MaximumWidth: 450;
+  }
+  // Relationship
+  .Relationship-UmVsYXRpb25zaGlw {
+    LineThickness: 2;
+    LineStyle: 10-10;
+    LineColor: #8b949e;
+    FontColor: #8b949e;
+    FontSize: 24;
+    MaximumWidth: 200;
+  }
+  // Scooter IoT Device
+  .Boundary-U2Nvb3RlciBJb1QgRGV2aWNl {
+    BackgroundColor: #161b22;
+    LineColor: #30363d;
+    LineStyle: 0;
+    LineThickness: 2;
+    FontColor: #e6edf3;
+    FontSize: 24;
+    HorizontalAlignment: center;
+    Shadowing: 0;
+  }
+  // Scooter Rental Platform
+  .Boundary-U2Nvb3RlciBSZW50YWwgUGxhdGZvcm0= {
+    BackgroundColor: #161b22;
+    LineColor: #30363d;
+    LineStyle: 0;
+    LineThickness: 2;
+    FontColor: #e6edf3;
+    FontSize: 24;
+    HorizontalAlignment: center;
+    Shadowing: 0;
+  }
+</style>
+
+rectangle "Scooter IoT Device\n<size:16>[Software System]</size>" <<Boundary-U2Nvb3RlciBJb1QgRGV2aWNl>> {
+  database "==MQTT Gateway\n<size:16>[Container: MQTT QoS 1, эмулятор]</size>\n\nПриём телеметрии, команды unlock/lock. Эмулятор; в проде — EMQX cluster / HiveMQ (ADR-0009)" <<Element-RWxlbWVudCxDb250YWluZXIsSW9U>> as ScooterIoTDevice.MQTTGateway
+}
+
+rectangle "Scooter Rental Platform\n<size:16>[Software System]</size>" <<Boundary-U2Nvb3RlciBSZW50YWwgUGxhdGZvcm0=>> {
+  rectangle "==Telegram Mini App\n<size:16>[Container: React + TS + Tailwind]</size>\n\nКарта, бронь 5 мин, аренда, оплата" <<Element-RWxlbWVudCxDb250YWluZXIsRnJvbnRlbmQ=>> as ScooterRentalPlatform.TelegramMiniApp
+  rectangle "==Ingress (NGINX)\n<size:16>[Container: NGINX Ingress]</size>\n\nTLS-терминация, rate limiting, маршрутизация (без авторизации)" <<Element-RWxlbWVudCxDb250YWluZXIsSW5mcmE=>> as ScooterRentalPlatform.IngressNGINX
+  rectangle "==Rental Service\n<size:16>[Container: Rust + Axum]</size>\n\nБронь, старт/финиш, тарифы, outbox" <<Element-RWxlbWVudCxDb250YWluZXIsTWljcm9zZXJ2aWNl>> as ScooterRentalPlatform.RentalService
+  rectangle "==Payment Service\n<size:16>[Container: Rust + Axum]</size>\n\nХолд/capture (idempotency_key = ride_id), circuit breaker на YooKassa, подписка 199₽/мес + trial, webhooks" <<Element-RWxlbWVudCxDb250YWluZXIsTWljcm9zZXJ2aWNl>> as ScooterRentalPlatform.PaymentService
+  rectangle "==Notification Service\n<size:16>[Container: Rust + Axum]</size>\n\nУведомления через Telegram Bot API" <<Element-RWxlbWVudCxDb250YWluZXIsTWljcm9zZXJ2aWNl>> as ScooterRentalPlatform.NotificationService
+  database "==PostgreSQL\n<size:16>[Container: PostgreSQL 16]</size>\n\nSource of truth (в т.ч. брони), по схеме на сервис" <<Element-RWxlbWVudCxDb250YWluZXIsRGF0YVN0b3Jl>> as ScooterRentalPlatform.PostgreSQL
+  queue "==Kafka\n<size:16>[Container: Kafka]</size>\n\nДоменные события, KRaft-режим" <<Element-RWxlbWVudCxDb250YWluZXIsTWVzc2FnaW5n>> as ScooterRentalPlatform.Kafka
+}
+
+person "==Пользователь\n<size:16>[Person]</size>\n\nАрендует самокат через Telegram Mini App" <<Element-RWxlbWVudCxQZXJzb24=>> as Пользователь
+rectangle "==Telegram Platform\n<size:16>[Software System]</size>\n\nХостинг Mini App, Bot API для уведомлений" <<Element-RWxlbWVudCxTb2Z0d2FyZSBTeXN0ZW0sRXh0ZXJuYWw=>> as TelegramPlatform
+
+Пользователь --> ScooterRentalPlatform.TelegramMiniApp <<Relationship-UmVsYXRpb25zaGlw>> : "1: Открывает карту, бронирует, оплачивает\n<size:16>[Telegram WebView (HTTPS)]</size>"
+ScooterRentalPlatform.TelegramMiniApp --> ScooterRentalPlatform.IngressNGINX <<Relationship-UmVsYXRpb25zaGlw>> : "2: REST API\n<size:16>[HTTPS/JSON]</size>"
+ScooterRentalPlatform.IngressNGINX --> ScooterRentalPlatform.RentalService <<Relationship-UmVsYXRpb25zaGlw>> : "3: Маршрутизация /rentals\n<size:16>[HTTPS/JSON]</size>"
+ScooterRentalPlatform.RentalService --> ScooterRentalPlatform.PaymentService <<Relationship-UmVsYXRpb25zaGlw>> : "4: Холд и capture (idempotency key)\n<size:16>[gRPC]</size>"
+ScooterRentalPlatform.RentalService --> ScooterIoTDevice.MQTTGateway <<Relationship-UmVsYXRpb25zaGlw>> : "5: Команды unlock/lock\n<size:16>[MQTT (QoS 1)]</size>"
+ScooterRentalPlatform.RentalService --> ScooterRentalPlatform.PostgreSQL <<Relationship-UmVsYXRpb25zaGlw>> : "6: Аренда + INSERT outbox (одна транзакция)\n<size:16>[SQL]</size>"
+ScooterRentalPlatform.RentalService --> ScooterRentalPlatform.Kafka <<Relationship-UmVsYXRpb25zaGlw>> : "7: Публикует события через outbox\n<size:16>[Kafka]</size>"
+ScooterRentalPlatform.Kafka --> ScooterRentalPlatform.NotificationService <<Relationship-UmVsYXRpb25zaGlw>> : "8: Триггеры: аренда, бронь, задачи\n<size:16>[Kafka]</size>"
+ScooterRentalPlatform.NotificationService --> TelegramPlatform <<Relationship-UmVsYXRpb25zaGlw>> : "9: Сообщения через Bot API\n<size:16>[HTTPS]</size>"
+
+@enduml

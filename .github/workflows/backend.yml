@@ -1,0 +1,31 @@
+name: backend
+
+on:
+  push:
+    paths:
+      - 'backend/**'
+  pull_request:
+    paths:
+      - 'backend/**'
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - run: cargo fmt --all -- --check
+      - run: cargo clippy --workspace -- -D warnings
+      - run: cargo test --workspace
+      - run: cargo test -p common telemetry -- --nocapture
+      - name: forbid raw PII in tracing calls
+        run: |
+          if grep -rnE '(info|debug|warn|error)!.*\bphone\b' --include='*.rs' crates services tools | grep -v telemetry.rs | grep -v test; then
+            echo 'PII leak: raw `phone` in tracing! call — use common::telemetry::mask_phone'
+            exit 1
+          fi
