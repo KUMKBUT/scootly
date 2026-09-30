@@ -17,7 +17,7 @@
 
 | Путь | Назначение | Куда смотреть |
 |---|---|---|
-| `backend/services/*` | Rust-микросервисы на Axum (auth, rental, scooter, operator, support, bot, payment, geo, telemetry, notification) | `backend/services/rental-service/src/main.rs` |
+| `backend/services/*` | Rust-микросервисы на Axum (auth, rental, scooter, operator, support, bot, payment, geo, telemetry, notification, ws-gateway) | `backend/services/rental-service/src/main.rs` |
 | `backend/crates/*` | Общие библиотеки (common, db, kafka, redis-client, proto) | `backend/crates/db/src/lib.rs` |
 | `backend/tools/seeder` | Сидер тестовых данных | `backend/tools/seeder/src/main.rs` |
 | `frontend/miniapp` | Telegram Mini App (React + Vite + Tailwind) | `frontend/miniapp/src/` |

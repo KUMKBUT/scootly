@@ -1,0 +1,39 @@
+// ADR-0011: fallback для /scooters/nearby — geo-service запрашивает
+// last_position у scooter-service (владельца таблицы scooters) по gRPC.
+// Внутренний канал: только внутри кластера, наружу не публикуется.
+syntax = "proto3";
+
+package scootly.scooter.v1;
+
+service ScooterPositions {
+  rpc LastPositions(LastPositionsRequest) returns (LastPositionsResponse);
+}
+
+message LastPositionsRequest {
+  // Центр поиска (широта/долгота WGS84).
+  double lat = 1;
+  double lon = 2;
+  // Радиус поиска в метрах, 1..=3000.
+  uint32 radius_m = 3;
+  // Пусто — все самокаты в радиусе; иначе — только перечисленные id
+  // (кейс «в GEO-кэше нет записи по самокату», ADR-0011).
+  repeated string scooter_ids = 4;
+  // Максимум результатов, сервер режет до 200.
+  uint32 limit = 5;
+}
+
+message ScooterPosition {
+  string id = 1; // uuid
+  string code = 2;
+  double lat = 3;
+  double lon = 4;
+  // available | booked | rented | offline
+  string status = 5;
+  uint32 battery_pct = 6;
+  // Расстояние от центра запроса, метры.
+  double distance_m = 7;
+}
+
+message LastPositionsResponse {
+  repeated ScooterPosition positions = 1;
+}

@@ -8,3 +8,5 @@ redis.workspace = true
 tokio.workspace = true
 tracing.workspace = true
 anyhow.workspace = true
+serde.workspace = true
+uuid.workspace = true

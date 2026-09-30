@@ -13,3 +13,6 @@ sqlx.workspace = true
 tracing.workspace = true
 tracing-subscriber.workspace = true
 anyhow.workspace = true
+uuid.workspace = true
+db = { path = "../../crates/db" }
+redis-client = { path = "../../crates/redis-client" }

@@ -1,16 +1,15 @@
 [package]
-name = "scooter-service"
+name = "ws-gateway"
 version = "0.1.0"
 edition = "2021"
 
 [[bin]]
-name = "scooter-service"
+name = "ws-gateway"
 path = "src/main.rs"
 
 [dependencies]
 tokio.workspace = true
-axum.workspace = true
-sqlx.workspace = true
+axum = { workspace = true, features = ["ws"] }
 serde.workspace = true
 serde_json.workspace = true
 tracing.workspace = true
@@ -18,10 +17,13 @@ tracing-subscriber.workspace = true
 tower.workspace = true
 tower-http.workspace = true
 uuid.workspace = true
+chrono.workspace = true
 anyhow.workspace = true
-tonic = { workspace = true, features = ["transport"] }
-tonic-prost.workspace = true
-prost.workspace = true
+redis.workspace = true
+futures-util = "0.3"
 common = { path = "../../crates/common" }
-db = { path = "../../crates/db" }
-proto = { path = "../../crates/proto" }
+redis-client = { path = "../../crates/redis-client" }
+
+[dev-dependencies]
+http-body-util.workspace = true
+tower.workspace = true

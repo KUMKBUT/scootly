@@ -1,6 +1,7 @@
 //! Репозитории и пул подключений PostgreSQL.
 //! Никаких прямых SQL-запросов вне этого крейта.
 
+pub mod scooters;
 pub mod users;
 
 use sqlx::postgres::{PgPool, PgPoolOptions};

@@ -4,4 +4,10 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-serde.workspace = true
+tonic.workspace = true
+tonic-prost.workspace = true
+prost.workspace = true
+
+[build-dependencies]
+tonic-prost-build = "0.14"
+protoc-bin-vendored = "3"
