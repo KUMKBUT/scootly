@@ -153,6 +153,19 @@ pub async fn find_by_code(pool: &PgPool, code: &str) -> AppResult<Scooter> {
     })
 }
 
+pub async fn find_by_id(pool: &PgPool, id: Uuid) -> AppResult<Scooter> {
+    sqlx::query_as::<_, Scooter>(
+        "SELECT id, code, lat, lon, status, battery_pct, created_at FROM scooters WHERE id = $1",
+    )
+    .bind(id)
+    .fetch_one(pool)
+    .await
+    .map_err(|e| match e {
+        sqlx::Error::RowNotFound => AppError::NotFound(format!("scooter {id}")),
+        other => AppError::Internal(other.into()),
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

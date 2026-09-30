@@ -8,6 +8,7 @@ use tokio::sync::Mutex;
 /// (reconnect-цикл при ECONNREFUSED), поэтому режем снаружи.
 pub const CONNECT_TIMEOUT: Duration = Duration::from_millis(1000);
 
+pub mod bookings;
 pub mod geo;
 
 /// Ленивое мультиплексированное соединение: первый запрос коннектит,

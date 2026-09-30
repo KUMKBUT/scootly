@@ -11,6 +11,16 @@ servers:
     url: kafka:9092
     protocol: kafka
 channels:
+  booking.created:
+    publish:
+      summary: Бронь создана (MVP #3)
+      message:
+        $ref: '#/components/messages/BookingCreated'
+  booking.expired:
+    publish:
+      summary: Бронь снята: TTL, отмена юзером или конвертация в поездку
+      message:
+        $ref: '#/components/messages/BookingExpired'
   rental.started:
     publish:
       summary: Аренда начата
@@ -38,6 +48,41 @@ channels:
         $ref: '#/components/messages/ScooterStatusChanged'
 components:
   messages:
+    BookingCreated:
+      payload:
+        type: object
+        required: [booking_id, scooter_id, user_id, expires_at]
+        properties:
+          booking_id:
+            type: string
+            format: uuid
+          scooter_id:
+            type: string
+            format: uuid
+          user_id:
+            type: string
+            format: uuid
+          expires_at:
+            type: string
+            format: date-time
+            description: TTL брони от момента создания (10 минут, MVP #3)
+    BookingExpired:
+      payload:
+        type: object
+        required: [booking_id, scooter_id, reason]
+        properties:
+          booking_id:
+            type: string
+            format: uuid
+          scooter_id:
+            type: string
+            format: uuid
+          user_id:
+            type: string
+            format: uuid
+          reason:
+            type: string
+            enum: [ttl, canceled, converted]
     RentalStarted:
       payload:
         type: object
@@ -100,11 +145,13 @@ components:
             format: uuid
           status:
             type: string
-            enum: [available, rented, offline]
+            enum: [available, booked, rented, offline]
 
 # Retention и durability (источник правды — ADR-0005).
 # Суффикс .v1 — версия схемы (ADR-0008).
 x-kafka-retention:
+  booking.created.v1: 7d
+  booking.expired.v1: 7d
   rental.events.v1: 7d
   booking.expired.v1: 7d
   scooter.telemetry.v1: 24h
@@ -117,6 +164,8 @@ x-kafka-retention:
 
 # DLQ-топики: <topic>.v1.dlq, retry 3x backoff → DLQ, разбор ручной (ADR-0010).
 x-kafka-dlq:
+  booking.created.v1.dlq: 14d
+  booking.expired.v1.dlq: 14d
   rental.events.v1.dlq: 14d
   booking.expired.v1.dlq: 14d
   scooter.telemetry.v1.dlq: 14d

@@ -16,4 +16,13 @@ tracing.workspace = true
 tracing-subscriber.workspace = true
 tower.workspace = true
 tower-http.workspace = true
+sqlx.workspace = true
+uuid.workspace = true
+chrono.workspace = true
+anyhow.workspace = true
 common = { path = "../../crates/common" }
+db = { path = "../../crates/db" }
+redis-client = { path = "../../crates/redis-client" }
+
+[dev-dependencies]
+http-body-util.workspace = true

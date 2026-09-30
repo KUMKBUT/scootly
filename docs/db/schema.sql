@@ -59,12 +59,16 @@ CREATE TABLE IF NOT EXISTS bookings (
     user_id UUID NOT NULL REFERENCES users(id),
     scooter_id UUID NOT NULL REFERENCES scooters(id),
     status VARCHAR(16) NOT NULL DEFAULT 'active'
-        CHECK (status IN ('active', 'expired', 'converted')),
+        CHECK (status IN ('active', 'expired', 'converted', 'canceled')),
     expires_at TIMESTAMPTZ NOT NULL,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-    -- Нельзя бронировать забронированный самокат (вторая линия после UPDATE..WHERE..RETURNING).
-    CONSTRAINT uq_active_booking_per_scooter UNIQUE (scooter_id, status)
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+-- Частичные UNIQUE (миграция 0002, MVP #3): не больше одной активной брони
+-- на самокат (вторая линия после UPDATE..WHERE..RETURNING) и на юзера (§5.1 «Лимит»).
+CREATE UNIQUE INDEX IF NOT EXISTS uq_active_booking_per_scooter
+    ON bookings (scooter_id) WHERE status = 'active';
+CREATE UNIQUE INDEX IF NOT EXISTS uq_active_booking_per_user
+    ON bookings (user_id) WHERE status = 'active';
 
 CREATE TABLE IF NOT EXISTS payments (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),

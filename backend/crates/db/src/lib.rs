@@ -1,6 +1,8 @@
 //! Репозитории и пул подключений PostgreSQL.
 //! Никаких прямых SQL-запросов вне этого крейта.
 
+pub mod bookings;
+pub mod outbox;
 pub mod scooters;
 pub mod users;
 
