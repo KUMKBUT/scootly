@@ -1,0 +1,47 @@
+[workspace]
+resolver = "2"
+members = [
+  "crates/common",
+  "crates/db",
+  "crates/kafka",
+  "crates/redis-client",
+  "crates/proto",
+  "services/auth-service",
+  "services/rental-service",
+  "services/scooter-service",
+  "services/operator-service",
+  "services/support-service",
+  "services/bot-service",
+  "services/payment-service",
+  "services/geo-service",
+  "services/telemetry-service",
+  "services/notification-service",
+  "tools/seeder",
+]
+
+[workspace.dependencies]
+tokio = { version = "1", features = ["full"] }
+axum = { version = "0.7" }
+sqlx = { version = "0.8", features = ["runtime-tokio", "postgres", "uuid", "chrono", "migrate"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+metrics = "0.22"
+redis = { version = "0.25", features = ["tokio-comp"] }
+rdkafka = { version = "0.36", features = ["cmake-build"] }
+uuid = { version = "1", features = ["v4", "serde"] }
+chrono = { version = "0.4", features = ["serde"] }
+thiserror = "1"
+anyhow = "1"
+tower = { version = "0.4", features = ["util"] }
+tower-http = { version = "0.5", features = ["trace", "cors"] }
+jsonwebtoken = "9"
+hmac = "0.12"
+sha2 = "0.10"
+hex = "0.4"
+http-body-util = "0.1"
+
+[workspace.lints.clippy]
+all = "deny"
+pedantic = "warn"
