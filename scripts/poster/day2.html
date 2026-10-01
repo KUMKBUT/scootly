@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap');
+    body { font-family: 'Inter', 'Noto Sans', sans-serif; }
+    .mono { font-family: 'JetBrains Mono', monospace; }
+    .emoji { display: inline-block; vertical-align: -0.08em; }
+    .glow {
+      background:
+        radial-gradient(1100px 500px at 85% -10%, rgba(88,166,255,.14), transparent 60%),
+        radial-gradient(900px 500px at 5% 110%, rgba(63,185,80,.12), transparent 60%),
+        linear-gradient(135deg, #0d1117 0%, #161b22 100%);
+    }
+    .grid-overlay {
+      background-image:
+        linear-gradient(rgba(48,54,61,.35) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(48,54,61,.35) 1px, transparent 1px);
+      background-size: 48px 48px;
+      mask-image: radial-gradient(ellipse 90% 85% at 50% 40%, black 30%, transparent 75%);
+      -webkit-mask-image: radial-gradient(ellipse 90% 85% at 50% 40%, black 30%, transparent 75%);
+    }
+  </style>
+</head>
+<body class="w-[1920px] h-[1080px] glow text-[#e6edf3] overflow-hidden relative">
+  <div class="grid-overlay absolute inset-0"></div>
+  <div class="relative p-16 flex flex-col h-full">
+
+    <div class="flex items-baseline gap-6">
+      <span class="text-[80px] leading-none"><img src="assets/scooter.svg" class="emoji w-[72px] h-[72px]" alt="scooter"></span>
+      <h1 class="text-[84px] font-extrabold tracking-tight leading-none">Scootly</h1>
+      <span class="mono text-[30px] text-[#8b949e] ml-4">pet project · day 2</span>
+    </div>
+
+    <p class="mono text-[30px] text-[#58a6ff] mt-5">
+      Карта живёт: самокаты рядом + live-статусы по WebSocket
+    </p>
+
+    <div class="flex-1 flex gap-10 mt-10 min-h-0">
+
+      <!-- Roadmap: все 8 MVP -->
+      <div class="w-[46%] flex flex-col gap-[10px]">
+        <p class="mono text-[22px] text-[#8b949e] tracking-widest mb-1">MVP · ROADMAP 2/8</p>
+
+        <div class="flex items-center gap-4 rounded-2xl px-5 py-[10px] bg-[#3fb950]/10 border border-[#3fb950]/60">
+          <span class="mono text-[22px] font-semibold text-[#3fb950]">01</span>
+          <span class="text-[27px] font-semibold">Авторизация</span>
+          <span class="mono ml-auto text-[19px] font-semibold px-3 py-1 rounded-full bg-[#3fb950] text-[#0d1117]">DONE</span>
+        </div>
+        <div class="flex items-center gap-4 rounded-2xl px-5 py-[10px] bg-[#3fb950]/10 border border-[#3fb950]/60">
+          <span class="mono text-[22px] font-semibold text-[#3fb950]">02</span>
+          <span class="text-[27px] font-semibold">Карта + самокаты рядом</span>
+          <span class="mono ml-auto text-[19px] font-semibold px-3 py-1 rounded-full bg-[#3fb950] text-[#0d1117]">DONE</span>
+        </div>
+
+        <div class="flex items-center gap-4 rounded-2xl px-5 py-[9px] bg-[#161b22]/70 border border-[#30363d]">
+          <span class="mono text-[22px] text-[#8b949e]">03</span>
+          <span class="text-[25px] text-[#c9d1d9]">Бронирование · 10 мин TTL</span>
+          <span class="mono ml-auto text-[18px] text-[#8b949e]">next</span>
+        </div>
+        <div class="flex items-center gap-4 rounded-2xl px-5 py-[9px] bg-[#161b22]/70 border border-[#30363d]">
+          <span class="mono text-[22px] text-[#8b949e]">04</span>
+          <span class="text-[25px] text-[#c9d1d9]">Поездка · unlock / finish</span>
+        </div>
+        <div class="flex items-center gap-4 rounded-2xl px-5 py-[9px] bg-[#161b22]/70 border border-[#30363d]">
+          <span class="mono text-[22px] text-[#8b949e]">05</span>
+          <span class="text-[25px] text-[#c9d1d9]">Оплата · hold → capture</span>
+        </div>
+        <div class="flex items-center gap-4 rounded-2xl px-5 py-[9px] bg-[#161b22]/70 border border-[#30363d]">
+          <span class="mono text-[22px] text-[#8b949e]">06</span>
+          <span class="text-[25px] text-[#c9d1d9]">Компенсация unlock-fail</span>
+        </div>
+        <div class="flex items-center gap-4 rounded-2xl px-5 py-[9px] bg-[#161b22]/70 border border-[#30363d]">
+          <span class="mono text-[22px] text-[#8b949e]">07</span>
+          <span class="text-[25px] text-[#c9d1d9]">История поездок и платежей</span>
+        </div>
+        <div class="flex items-center gap-4 rounded-2xl px-5 py-[9px] bg-[#161b22]/70 border border-[#30363d]">
+          <span class="mono text-[22px] text-[#8b949e]">08</span>
+          <span class="text-[25px] text-[#c9d1d9]">Outbox → Kafka · события</span>
+        </div>
+      </div>
+
+      <!-- Детали двух выполненных -->
+      <div class="flex-1 flex flex-col gap-6 min-h-0">
+        <div class="rounded-2xl p-6 bg-[#0d1117]/80 border border-[#3fb950]/50">
+          <p class="mono text-[20px] text-[#3fb950] tracking-widest">✓ MVP 01 · АВТОРИЗАЦИЯ</p>
+          <p class="text-[25px] mt-2 leading-snug">Telegram <span class="mono text-[#58a6ff]">init-data</span> → JWT access + refresh</p>
+          <p class="mono text-[20px] text-[#8b949e] mt-2">auth-service · ADR-0007/0013 · 401-контракт · unit-тесты</p>
+        </div>
+
+        <div class="rounded-2xl p-6 bg-[#0d1117]/80 border border-[#3fb950]/50">
+          <p class="mono text-[20px] text-[#3fb950] tracking-widest">✓ MVP 02 · КАРТА + САМОКАТЫ РЯДОМ</p>
+          <ul class="text-[24px] mt-2 leading-snug space-y-1">
+            <li><span class="mono text-[#58a6ff]">GET /scooters/nearby</span> — Redis GEOSEARCH + HGETALL пайплайном</li>
+            <li>fallback gRPC <span class="mono text-[#58a6ff]">last_position</span> — ADR-0011, деградация без 5xx</li>
+            <li><span class="mono text-[#58a6ff]">ws-gateway</span> — subscribe.scooters, Redis pub/sub fan-out</li>
+            <li>seeder — 12 самокатов Алматы → PG + Redis GEO</li>
+          </ul>
+          <p class="mono text-[20px] text-[#3fb950] mt-3">45 тестов ✓ · clippy −D warnings ✓ · fmt ✓</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="flex justify-between items-center mt-8 pt-7 border-t border-[#30363d]">
+      <span class="text-[25px]"><img src="assets/crab.svg" class="emoji w-[30px] h-[30px]" alt=""> Rust + Axum · tonic gRPC · Redis</span>
+      <span class="mono text-[22px] text-[#8b949e]">github.com/KUMKBUT/scootly</span>
+    </div>
+
+  </div>
+</body>
+</html>
