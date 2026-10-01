@@ -81,7 +81,12 @@ pub async fn search(
     radius_m: u32,
     limit: usize,
 ) -> anyhow::Result<Vec<GeoHit>> {
-    let raw: Vec<(String, f64, (f64, f64))> = redis::cmd("GEOSEARCH")
+    // Ответ GEOSEARCH ... WITHDIST WITHCOORD — список строк [member, dist,
+    // [lon, lat]]. Типы-кортежи тут не годятся: в redis-rs 0.25 `Vec<(A, B, C)>`
+    // трактует bulk как ПЛОСКИЙ список (chunks_exact по размеру кортежа) и
+    // валится на вложенных строках («wrong dimension»), поэтому строку
+    // разбираем вручную.
+    let rows: Vec<Vec<redis::Value>> = redis::cmd("GEOSEARCH")
         .arg(GEO_KEY)
         .arg("FROMLONLAT")
         .arg(lon)
@@ -97,10 +102,17 @@ pub async fn search(
         .query_async(conn)
         .await?;
 
-    Ok(raw
+    Ok(rows
         .into_iter()
-        .filter_map(|(id, distance_m, (lon, lat))| {
-            let id = Uuid::parse_str(&id).ok()?;
+        .filter_map(|row| {
+            if row.len() != 3 {
+                return None;
+            }
+            let member: String = redis::from_redis_value(&row[0]).ok()?;
+            let id = Uuid::parse_str(&member).ok()?;
+            let distance_m: f64 = redis::from_redis_value(&row[1]).ok()?;
+            let coord: Vec<f64> = redis::from_redis_value(&row[2]).ok()?;
+            let (lon, lat) = (*coord.first()?, *coord.get(1)?);
             Some(GeoHit {
                 id,
                 lat,
