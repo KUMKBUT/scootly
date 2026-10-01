@@ -80,6 +80,21 @@ CREATE UNIQUE INDEX IF NOT EXISTS uq_active_ride_per_user
 CREATE INDEX IF NOT EXISTS idx_rentals_user_started
     ON rentals (user_id, started_at DESC);
 
+-- MVP #6 (ADR-0006): попытка unlock. Пишется ДО отправки команды замку;
+-- ack не пришёл за 10 c → failed (холд снят, юзер уведомлён, самокат offline).
+-- Повторная попытка юзера — новая строка (у каждой свой исход).
+CREATE TABLE IF NOT EXISTS ride_attempts (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    rental_id UUID NOT NULL REFERENCES rentals (id),
+    scooter_id UUID NOT NULL REFERENCES scooters (id),
+    status VARCHAR(16) NOT NULL DEFAULT 'pending'
+        CHECK (status IN ('pending', 'acked', 'failed')),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    resolved_at TIMESTAMPTZ
+);
+CREATE INDEX IF NOT EXISTS idx_ride_attempts_rental
+    ON ride_attempts (rental_id, created_at DESC);
+
 CREATE TABLE IF NOT EXISTS payments (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id UUID NOT NULL REFERENCES users(id),

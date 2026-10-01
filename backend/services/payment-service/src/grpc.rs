@@ -89,6 +89,33 @@ impl PaymentOrchestrator for PaymentOrchestratorImpl {
     }
 
     #[tracing::instrument(skip_all)]
+    async fn cancel_hold(
+        &self,
+        request: Request<pb::CancelHoldRequest>,
+    ) -> Result<Response<pb::CancelHoldReply>, Status> {
+        let rental_id = parse_uuid(&request.into_inner().rental_id)?;
+
+        // Void — часть компенсации unlock-fail (ADR-0006): недоступность
+        // эквайринга не роняет компенсацию — queued_for_retry (джоб сверки).
+        let outcome = match services::payments::cancel_hold(&self.state, rental_id).await {
+            Ok(o) => o,
+            Err(error) => {
+                tracing::error!(%error, rental_id = %rental_id, "cancel_hold failed");
+                return Err(Status::internal("cancel_hold failed"));
+            }
+        };
+        let (outcome, status) = match outcome {
+            services::payments::CancelResult::Canceled => ("canceled", "canceled"),
+            services::payments::CancelResult::AlreadyCanceled => ("already_canceled", "canceled"),
+            services::payments::CancelResult::QueuedForRetry => ("queued_for_retry", "hold"),
+        };
+        Ok(Response::new(pb::CancelHoldReply {
+            outcome: outcome.to_owned(),
+            status: status.to_owned(),
+        }))
+    }
+
+    #[tracing::instrument(skip_all)]
     async fn rental_payment(
         &self,
         request: Request<pb::RentalPaymentRequest>,

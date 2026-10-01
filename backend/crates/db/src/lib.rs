@@ -5,6 +5,7 @@ pub mod bookings;
 pub mod outbox;
 pub mod payments;
 pub mod rentals;
+pub mod ride_attempts;
 pub mod scooters;
 pub mod users;
 

@@ -223,12 +223,61 @@ pub fn list_methods(yookassa: &YooKassa) -> Vec<crate::dto::PaymentMethodDto> {
     }
 }
 
-/// Компенсация: отмена холда (unlock-fail — полная версия в MVP #6, ADR-0006).
-#[allow(dead_code)]
-pub async fn cancel_hold(state: &AppState, rental_id: Uuid) -> AppResult<Option<Payment>> {
+/// Итог void холда (unlock-fail, ADR-0006).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CancelResult {
+    /// Холд снят сейчас (`hold → canceled`, событие в outbox).
+    Canceled,
+    /// Холда уже нет (повторный void / платежа не было) — делать нечего.
+    AlreadyCanceled,
+    /// Эквайринг недоступен: void ушёл в retry-очередь джоба сверки.
+    QueuedForRetry,
+}
+
+/// Компенсация unlock-fail (MVP #6, ADR-0006): снятие холда, идемпотентно по
+/// `hold:{rental_id}`. Эквайринг недоступен — холд не теряем: retry-запись
+/// в outbox (`void.retry.v1`), джоб сверки доводит (как capture, ADR-0003/0014).
+#[tracing::instrument(skip_all, fields(rental_id = %rental_id))]
+pub async fn cancel_hold(state: &AppState, rental_id: Uuid) -> AppResult<CancelResult> {
     let Some(payment) = payments::find_by_rental(&state.pool, rental_id).await? else {
-        return Ok(None);
+        return Ok(CancelResult::AlreadyCanceled);
     };
-    let _ = state.yookassa.cancel_hold(&payment.yookassa_id).await;
-    payments::cancel_hold(&state.pool, rental_id).await
+    if payment.status != "hold" {
+        return Ok(CancelResult::AlreadyCanceled);
+    }
+
+    match state.yookassa.cancel_hold(&payment.yookassa_id).await {
+        Ok(()) => match payments::cancel_hold(&state.pool, rental_id).await? {
+            Some(p) => {
+                metrics::counter!("payment_voids_total").increment(1);
+                tracing::info!(payment_id = %p.id, yookassa_id = %p.yookassa_id, "hold canceled (void)");
+                Ok(CancelResult::Canceled)
+            }
+            None => Ok(CancelResult::AlreadyCanceled),
+        },
+        Err(error) => {
+            metrics::counter!("payment_voids_retry_total").increment(1);
+            tracing::warn!(
+                %error,
+                payment_id = %payment.id,
+                "void failed at acquiring, queued for retry"
+            );
+            queue_void_retry(state, &payment, 0).await?;
+            Ok(CancelResult::QueuedForRetry)
+        }
+    }
+}
+
+async fn queue_void_retry(state: &AppState, payment: &Payment, attempts: u32) -> AppResult<()> {
+    db::outbox::push_pool(
+        &state.pool,
+        "void.retry.v1",
+        &serde_json::json!({
+            "payment_id": payment.id,
+            "rental_id": payment.rental_id,
+            "yookassa_id": payment.yookassa_id,
+            "attempts": attempts,
+        }),
+    )
+    .await
 }

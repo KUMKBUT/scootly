@@ -142,9 +142,13 @@ pub async fn capture(
     Ok(CaptureOutcome::Captured(payment))
 }
 
-/// Снятие холда (unlock-fail / отмена в YooKassa): `hold → canceled`.
-/// Повторный вызов ничего не меняет (возвращает текущее состояние).
+/// Снятие холда (unlock-fail MVP #6 / отмена в YooKassa): `hold → canceled`.
+/// Идемпотентен: `UPDATE .. WHERE status='hold'` — повторный вызов ничего
+/// не меняет и не публикует событие. Событие `payment.events.v1`
+/// (`payment.canceled`) пишется в outbox в одной транзакции со сменой статуса.
 pub async fn cancel_hold(pool: &PgPool, rental_id: Uuid) -> AppResult<Option<Payment>> {
+    let mut tx = pool.begin().await.map_err(internal)?;
+
     let canceled = sqlx::query_as::<_, Payment>(&format!(
         r#"
         UPDATE payments
@@ -154,13 +158,32 @@ pub async fn cancel_hold(pool: &PgPool, rental_id: Uuid) -> AppResult<Option<Pay
         "#
     ))
     .bind(rental_id)
-    .fetch_optional(pool)
+    .fetch_optional(&mut *tx)
     .await
     .map_err(internal)?;
 
     match canceled {
-        Some(payment) => Ok(Some(payment)),
-        None => find_by_rental(pool, rental_id).await,
+        Some(payment) => {
+            super::outbox::push(
+                &mut tx,
+                "payment.events.v1",
+                &serde_json::json!({
+                    "event": "payment.canceled",
+                    "payment_id": payment.id,
+                    "rental_id": rental_id,
+                    "user_id": payment.user_id,
+                    "amount": payment.amount_kopeks,
+                }),
+            )
+            .await?;
+            tx.commit().await.map_err(internal)?;
+            Ok(Some(payment))
+        }
+        None => {
+            let existing = find_by_rental_tx(&mut tx, rental_id).await?;
+            tx.commit().await.map_err(internal)?;
+            Ok(existing)
+        }
     }
 }
 

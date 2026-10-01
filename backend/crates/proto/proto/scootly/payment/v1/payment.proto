@@ -16,6 +16,10 @@ service PaymentOrchestrator {
   // Эквайринг недоступен → queued_for_retry (джоб сверки, ADR-0003).
   rpc Capture(CaptureRequest) returns (CaptureReply);
 
+  // Снятие холда (void): замок не подтвердил unlock за 10 c (ADR-0006).
+  // Идемпотентно по hold:{rental_id}: повторный вызов → already_canceled.
+  rpc CancelHold(CancelHoldRequest) returns (CancelHoldReply);
+
   // Платёж поездки для чека (openapi Ride.payment); нет записи → payment не задан.
   rpc RentalPayment(RentalPaymentRequest) returns (RentalPaymentReply);
 }
@@ -43,6 +47,16 @@ message CaptureRequest {
 message CaptureReply {
   // captured | already_captured | queued_for_retry
   string outcome = 1;
+}
+
+message CancelHoldRequest {
+  string rental_id = 1;          // uuid; ключ холда hold:{rental_id} (ADR-0014)
+}
+
+message CancelHoldReply {
+  // canceled | already_canceled | not_found
+  string outcome = 1;
+  string status = 2;             // итоговый статус платежа (canceled)
 }
 
 message RentalPaymentRequest {

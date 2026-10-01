@@ -94,6 +94,20 @@ CREATE INDEX idx_rides_user ON rides (user_id, started_at DESC);
 -- У юзера не больше одной активной поездки:
 CREATE UNIQUE INDEX uq_active_ride_per_user ON rides (user_id) WHERE status = 'active';
 
+-- Попытка unlock (ADR-0006, MVP #6): пишется ДО отправки команды замку,
+-- ack за 10 c → acked, тише → failed (холд снят, самокат offline).
+-- Повтор юзера — новая строка.
+CREATE TABLE ride_attempts (
+    id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    rental_id   UUID NOT NULL REFERENCES rides(id),
+    scooter_id  UUID NOT NULL REFERENCES scooters(id),
+    status      VARCHAR(16) NOT NULL DEFAULT 'pending'
+                CHECK (status IN ('pending', 'acked', 'failed')),
+    created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+    resolved_at TIMESTAMPTZ
+);
+CREATE INDEX idx_ride_attempts_rental ON ride_attempts (rental_id, created_at DESC);
+
 -- Платёж YooKassa: холд на старте → capture на финише (ADR-0003, ADR-0014).
 CREATE TABLE payments (
     id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -137,6 +151,9 @@ available ──бронь──▶ booked ──старт──▶ rented ─�
 
 **rides.status**: `active → finished` (успех) | `active → failed` (unlock не подтверждён за 10 c;
 холд отменяется, `amount_kopeks = 0`).
+
+**ride_attempts.status** (ADR-0006): `pending → acked` (поездка едет) | `pending → failed`
+(компенсация: void холда, событие `unlock_failed`, самокат `offline`).
 
 **payments.status**: `hold → captured` (capture, идемпотентно по `ride:{ride_id}`) |
 `hold → canceled` (unlock-fail или юзер не стартовал из брони) | `captured → refunded` (после MVP, поддержка).

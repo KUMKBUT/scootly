@@ -154,6 +154,7 @@ x-kafka-retention:
   booking.expired.v1: 7d
   rental.events.v1: 7d
   rental.started.v1: 7d
+  rental.unlock-failed.v1: 7d
   rental.finished.v1: 7d
   booking.expired.v1: 7d
   scooter.telemetry.v1: 24h
@@ -161,6 +162,7 @@ x-kafka-retention:
   support.tickets.v1: 30d
   payment.events.v1: 30d
   capture.retry.v1: 7d
+  void.retry.v1: 7d
   notification.send.v1: 3d
   operator.tasks.v1: 7d
   shift.events.v1: 7d
@@ -170,12 +172,14 @@ x-kafka-dlq:
   booking.created.v1.dlq: 14d
   booking.expired.v1.dlq: 14d
   rental.events.v1.dlq: 14d
+  rental.unlock-failed.v1.dlq: 14d
   booking.expired.v1.dlq: 14d
   scooter.telemetry.v1.dlq: 14d
   scooter.status.v1.dlq: 14d
   support.tickets.v1.dlq: 14d
   payment.events.v1.dlq: 14d
   capture.retry.v1.dlq: 14d
+  void.retry.v1.dlq: 14d
   notification.send.v1.dlq: 14d
   operator.tasks.v1.dlq: 14d
   shift.events.v1.dlq: 14d

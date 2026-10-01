@@ -29,3 +29,5 @@ proto = { path = "../../crates/proto" }
 
 [dev-dependencies]
 http-body-util.workspace = true
+# test-util: paused-время для контракта ack-таймаута замка (ADR-0006).
+tokio = { workspace = true, features = ["test-util"] }

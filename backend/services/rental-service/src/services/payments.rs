@@ -5,6 +5,8 @@
 //!
 //! ADR-0014: capture не роняет финиш юзера; сбой → retry-очередь на стороне
 //! payment-service (джоб сверки), здесь — только лог и метрика.
+//! MVP #6 (ADR-0006): void холда при unlock-fail, идемпотентно по
+//! `hold:{rental_id}`.
 
 use common::{AppError, AppResult};
 use proto::scootly::payment::v1 as pb;
@@ -31,6 +33,17 @@ pub enum CaptureOutcome {
     QueuedForRetry,
 }
 
+/// Итог void (unlock-fail, ADR-0006).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum VoidOutcome {
+    /// Холд снят (`payments.status = canceled`).
+    Voided,
+    /// Холда уже нет (повтор / не было) — компенсировать нечего.
+    AlreadyCanceled,
+    /// Void не дошёл до эквайринга — retry-очередь payment-service.
+    QueuedForRetry,
+}
+
 /// Порт оплаты: асинхронный контракт под gRPC.
 pub trait PaymentGateway: Send + Sync {
     fn hold(
@@ -45,6 +58,12 @@ pub trait PaymentGateway: Send + Sync {
         rental_id: Uuid,
         amount_kopeks: i32,
     ) -> impl std::future::Future<Output = AppResult<CaptureOutcome>> + Send;
+
+    /// Снятие холда (unlock-fail): идемпотентно, ключ `hold:{rental_id}`.
+    fn void(
+        &self,
+        rental_id: Uuid,
+    ) -> impl std::future::Future<Output = AppResult<VoidOutcome>> + Send;
 
     fn find(
         &self,
@@ -145,6 +164,26 @@ impl PaymentGateway for GrpcPayments {
         }
     }
 
+    async fn void(&self, rental_id: Uuid) -> AppResult<VoidOutcome> {
+        let mut client = self.client.clone();
+        let reply = client
+            .cancel_hold(pb::CancelHoldRequest {
+                rental_id: rental_id.to_string(),
+            })
+            .await
+            .map_err(|status| AppError::Upstream {
+                code: "void_failed",
+                message: status.message().to_owned(),
+            })?
+            .into_inner();
+        match reply.outcome.as_str() {
+            "canceled" => Ok(VoidOutcome::Voided),
+            "queued_for_retry" => Ok(VoidOutcome::QueuedForRetry),
+            // already_canceled / not_found: холда нет — снимать нечего.
+            _ => Ok(VoidOutcome::AlreadyCanceled),
+        }
+    }
+
     async fn find(&self, rental_id: Uuid) -> AppResult<Option<PaymentRecord>> {
         let mut client = self.client.clone();
         let reply = client
@@ -189,6 +228,11 @@ impl PaymentGateway for EmulatedPayments {
         Ok(CaptureOutcome::Captured)
     }
 
+    async fn void(&self, rental_id: Uuid) -> AppResult<VoidOutcome> {
+        tracing::debug!(%rental_id, "emulated payment void");
+        Ok(VoidOutcome::Voided)
+    }
+
     async fn find(&self, _rental_id: Uuid) -> AppResult<Option<PaymentRecord>> {
         // В эмуляции чека нет — payment не возвращаем (DTO его просто опустит).
         Ok(None)
@@ -215,6 +259,13 @@ impl PaymentGateway for FailingPayments {
     async fn capture(&self, _rental_id: Uuid, _amount_kopeks: i32) -> AppResult<CaptureOutcome> {
         Err(AppError::Upstream {
             code: "capture_failed",
+            message: "acquiring is unavailable".into(),
+        })
+    }
+
+    async fn void(&self, _rental_id: Uuid) -> AppResult<VoidOutcome> {
+        Err(AppError::Upstream {
+            code: "void_failed",
             message: "acquiring is unavailable".into(),
         })
     }
@@ -277,6 +328,14 @@ impl PaymentGateway for Payments {
             Self::Emulated => EmulatedPayments.capture(rental_id, amount_kopeks).await,
             Self::Failing => FailingPayments.capture(rental_id, amount_kopeks).await,
             Self::Grpc(grpc) => grpc.capture(rental_id, amount_kopeks).await,
+        }
+    }
+
+    async fn void(&self, rental_id: Uuid) -> AppResult<VoidOutcome> {
+        match self {
+            Self::Emulated => EmulatedPayments.void(rental_id).await,
+            Self::Failing => FailingPayments.void(rental_id).await,
+            Self::Grpc(grpc) => grpc.void(rental_id).await,
         }
     }
 

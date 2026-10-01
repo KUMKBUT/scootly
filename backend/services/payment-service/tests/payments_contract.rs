@@ -580,3 +580,178 @@ async fn grpc_hold_capture_and_receipt() {
     server.abort();
     teardown(&fx).await;
 }
+
+/// MVP #6 (ADR-0006, DoD): void холда — `hold → canceled`, идемпотентно:
+/// повторный вызов не меняет статус и не плодит события, capture после
+/// отмены невозможен.
+#[tokio::test]
+#[ignore = "requires live Postgres (make up && make migrate)"]
+async fn void_hold_is_idempotent() {
+    let mut fx = Fixture::setup().await;
+    let state = state_with(&fx.pool, YooKassa::Emulated);
+    let rental = fx.rental().await;
+    payments::hold(&state, fx.user_id, rental.id, 50_000)
+        .await
+        .expect("hold");
+    let payment = db::payments::find_by_rental(&fx.pool, rental.id)
+        .await
+        .unwrap()
+        .expect("payment");
+
+    let events_before = fx
+        .outbox_count_for_payment("payment.events.v1", payment.id)
+        .await;
+    let first = payments::cancel_hold(&state, rental.id)
+        .await
+        .expect("void");
+    assert_eq!(first, payments::CancelResult::Canceled);
+    assert_eq!(
+        db::payments::find_by_rental(&fx.pool, rental.id)
+            .await
+            .unwrap()
+            .expect("payment")
+            .status,
+        "canceled"
+    );
+
+    // Повторный void: ничего не меняет, второго события нет.
+    let second = payments::cancel_hold(&state, rental.id)
+        .await
+        .expect("void again");
+    assert_eq!(second, payments::CancelResult::AlreadyCanceled);
+    assert_eq!(
+        fx.outbox_count_for_payment("payment.events.v1", payment.id)
+            .await
+            - events_before,
+        1,
+        "exactly one canceled event"
+    );
+
+    // Capture по отменённому холду невозможен (деньги не спишутся дважды).
+    assert!(matches!(
+        payments::capture(&state, rental.id, 1_000).await,
+        Err(common::AppError::Conflict {
+            code: "capture_failed",
+            ..
+        })
+    ));
+    teardown(&fx).await;
+}
+
+/// MVP #6: void при недоступном эквайринге — queued_for_retry (холд в PG
+/// остаётся hold), джоб сверки доводит до canceled и закрывает очередь.
+#[tokio::test]
+#[ignore = "requires live Postgres (make up && make migrate)"]
+async fn failed_void_is_reconciled() {
+    let mut fx = Fixture::setup().await;
+    let failing = state_with(&fx.pool, YooKassa::Failing);
+    let working = state_with(&fx.pool, YooKassa::Emulated);
+    let rental = fx.rental().await;
+
+    // Холд в шлюзе Failing отклоняется — сначала холдим через рабочий.
+    payments::hold(&working, fx.user_id, rental.id, 50_000)
+        .await
+        .expect("hold");
+    let outcome = payments::cancel_hold(&failing, rental.id)
+        .await
+        .expect("queued");
+    assert_eq!(outcome, payments::CancelResult::QueuedForRetry);
+    let retries = fx.outbox_count("void.retry.v1").await;
+    assert!(retries >= 1, "void retry record queued");
+    assert_eq!(
+        db::payments::find_by_rental(&fx.pool, rental.id)
+            .await
+            .unwrap()
+            .expect("payment")
+            .status,
+        "hold",
+        "money not released until acquiring confirms"
+    );
+
+    // Эквайринг вернулся: джоб сверки снимает холд и закрывает очередь.
+    let processed = payment_service::services::reconcile::reconcile_once(&working)
+        .await
+        .expect("reconcile");
+    assert!(processed >= 1);
+    let canceled = db::payments::find_by_rental(&fx.pool, rental.id)
+        .await
+        .unwrap()
+        .expect("payment");
+    assert_eq!(canceled.status, "canceled");
+    let pending: i64 = sqlx::query_scalar(
+        "SELECT count(*) FROM outbox WHERE topic = 'void.retry.v1' AND published_at IS NULL",
+    )
+    .fetch_one(&fx.pool)
+    .await
+    .unwrap();
+    assert_eq!(pending, 0, "void retry queue drained");
+    teardown(&fx).await;
+}
+
+/// gRPC CancelHold (MVP #6): канал rental-service → payment-service,
+/// идемпотентный void по `hold:{rental_id}`.
+#[tokio::test]
+#[ignore = "requires live Postgres (make up && make migrate)"]
+async fn grpc_cancel_hold_voids_unlock_fail_hold() {
+    use proto::scootly::payment::v1::payment_orchestrator_client::PaymentOrchestratorClient;
+    use proto::scootly::payment::v1::payment_orchestrator_server::PaymentOrchestratorServer;
+
+    let mut fx = Fixture::setup().await;
+    let rental = fx.rental().await;
+
+    let probe = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+    let addr = probe.local_addr().unwrap();
+    drop(probe);
+
+    let state = state_with(&fx.pool, YooKassa::Emulated);
+    let server = tokio::spawn(async move {
+        tonic::transport::Server::builder()
+            .add_service(PaymentOrchestratorServer::new(
+                payment_service::grpc::PaymentOrchestratorImpl { state },
+            ))
+            .serve(addr)
+            .await
+            .unwrap();
+    });
+    tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+
+    let channel = tonic::transport::Channel::from_shared(format!("http://{addr}"))
+        .unwrap()
+        .connect_lazy();
+    let mut client = PaymentOrchestratorClient::new(channel);
+
+    let hold = client
+        .hold(proto::scootly::payment::v1::HoldRequest {
+            user_id: fx.user_id.to_string(),
+            rental_id: rental.id.to_string(),
+            hold_amount_kopeks: 50_000,
+        })
+        .await
+        .unwrap()
+        .into_inner();
+    assert_eq!(hold.status, "hold");
+
+    // Замок не подтвердил unlock (ADR-0006): rental-service вызывает CancelHold.
+    let void = client
+        .cancel_hold(proto::scootly::payment::v1::CancelHoldRequest {
+            rental_id: rental.id.to_string(),
+        })
+        .await
+        .unwrap()
+        .into_inner();
+    assert_eq!(void.outcome, "canceled");
+    assert_eq!(void.status, "canceled");
+
+    // Повторный void — already_canceled (идемпотентно).
+    let repeat = client
+        .cancel_hold(proto::scootly::payment::v1::CancelHoldRequest {
+            rental_id: rental.id.to_string(),
+        })
+        .await
+        .unwrap()
+        .into_inner();
+    assert_eq!(repeat.outcome, "already_canceled");
+
+    server.abort();
+    teardown(&fx).await;
+}

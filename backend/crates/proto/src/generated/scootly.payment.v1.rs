@@ -40,6 +40,21 @@ pub struct CaptureReply {
     pub outcome: ::prost::alloc::string::String,
 }
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
+pub struct CancelHoldRequest {
+    /// uuid; ключ холда hold:{rental_id} (ADR-0014)
+    #[prost(string, tag = "1")]
+    pub rental_id: ::prost::alloc::string::String,
+}
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
+pub struct CancelHoldReply {
+    /// canceled | already_canceled | not_found
+    #[prost(string, tag = "1")]
+    pub outcome: ::prost::alloc::string::String,
+    /// итоговый статус платежа (canceled)
+    #[prost(string, tag = "2")]
+    pub status: ::prost::alloc::string::String,
+}
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct RentalPaymentRequest {
     /// uuid
     #[prost(string, tag = "1")]
@@ -209,6 +224,37 @@ pub mod payment_orchestrator_client {
                 );
             self.inner.unary(req, path, codec).await
         }
+        /// Снятие холда (void): замок не подтвердил unlock за 10 c (ADR-0006).
+        /// Идемпотентно по hold:{rental_id}: повторный вызов → already_canceled.
+        pub async fn cancel_hold(
+            &mut self,
+            request: impl tonic::IntoRequest<super::CancelHoldRequest>,
+        ) -> std::result::Result<
+            tonic::Response<super::CancelHoldReply>,
+            tonic::Status,
+        > {
+            self.inner
+                .ready()
+                .await
+                .map_err(|e| {
+                    tonic::Status::unknown(
+                        format!("Service was not ready: {}", e.into()),
+                    )
+                })?;
+            let codec = tonic_prost::ProstCodec::default();
+            let path = http::uri::PathAndQuery::from_static(
+                "/scootly.payment.v1.PaymentOrchestrator/CancelHold",
+            );
+            let mut req = request.into_request();
+            req.extensions_mut()
+                .insert(
+                    GrpcMethod::new(
+                        "scootly.payment.v1.PaymentOrchestrator",
+                        "CancelHold",
+                    ),
+                );
+            self.inner.unary(req, path, codec).await
+        }
         /// Платёж поездки для чека (openapi Ride.payment); нет записи → payment не задан.
         pub async fn rental_payment(
             &mut self,
@@ -267,6 +313,12 @@ pub mod payment_orchestrator_server {
             &self,
             request: tonic::Request<super::CaptureRequest>,
         ) -> std::result::Result<tonic::Response<super::CaptureReply>, tonic::Status>;
+        /// Снятие холда (void): замок не подтвердил unlock за 10 c (ADR-0006).
+        /// Идемпотентно по hold:{rental_id}: повторный вызов → already_canceled.
+        async fn cancel_hold(
+            &self,
+            request: tonic::Request<super::CancelHoldRequest>,
+        ) -> std::result::Result<tonic::Response<super::CancelHoldReply>, tonic::Status>;
         /// Платёж поездки для чека (openapi Ride.payment); нет записи → payment не задан.
         async fn rental_payment(
             &self,
@@ -426,6 +478,52 @@ pub mod payment_orchestrator_server {
                     let inner = self.inner.clone();
                     let fut = async move {
                         let method = CaptureSvc(inner);
+                        let codec = tonic_prost::ProstCodec::default();
+                        let mut grpc = tonic::server::Grpc::new(codec)
+                            .apply_compression_config(
+                                accept_compression_encodings,
+                                send_compression_encodings,
+                            )
+                            .apply_max_message_size_config(
+                                max_decoding_message_size,
+                                max_encoding_message_size,
+                            );
+                        let res = grpc.unary(method, req).await;
+                        Ok(res)
+                    };
+                    Box::pin(fut)
+                }
+                "/scootly.payment.v1.PaymentOrchestrator/CancelHold" => {
+                    #[allow(non_camel_case_types)]
+                    struct CancelHoldSvc<T: PaymentOrchestrator>(pub Arc<T>);
+                    impl<
+                        T: PaymentOrchestrator,
+                    > tonic::server::UnaryService<super::CancelHoldRequest>
+                    for CancelHoldSvc<T> {
+                        type Response = super::CancelHoldReply;
+                        type Future = BoxFuture<
+                            tonic::Response<Self::Response>,
+                            tonic::Status,
+                        >;
+                        fn call(
+                            &mut self,
+                            request: tonic::Request<super::CancelHoldRequest>,
+                        ) -> Self::Future {
+                            let inner = Arc::clone(&self.0);
+                            let fut = async move {
+                                <T as PaymentOrchestrator>::cancel_hold(&inner, request)
+                                    .await
+                            };
+                            Box::pin(fut)
+                        }
+                    }
+                    let accept_compression_encodings = self.accept_compression_encodings;
+                    let send_compression_encodings = self.send_compression_encodings;
+                    let max_decoding_message_size = self.max_decoding_message_size;
+                    let max_encoding_message_size = self.max_encoding_message_size;
+                    let inner = self.inner.clone();
+                    let fut = async move {
+                        let method = CancelHoldSvc(inner);
                         let codec = tonic_prost::ProstCodec::default();
                         let mut grpc = tonic::server::Grpc::new(codec)
                             .apply_compression_config(

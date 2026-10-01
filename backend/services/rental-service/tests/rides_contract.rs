@@ -6,6 +6,8 @@
 //!
 //! Кейсы docs/mvp.md §2 #4: старт напрямую и из брони (converted), тик
 //! стоимости в снапшоте, финиш (лок + расчёт) идемпотентен, без SELECT-then-UPDATE.
+//! MVP #6 (ADR-0006): unlock без ack за 10 c → компенсация — void холда,
+//! поездка failed, самокат offline, событие `rental.unlock-failed.v1`.
 
 use axum::body::Body;
 use axum::http::{Request, StatusCode};
@@ -751,5 +753,102 @@ async fn hold_rejection_is_402_and_compensated() {
     .await;
     assert_eq!(status, StatusCode::CREATED, "body: {body}");
 
+    teardown(&fx).await;
+}
+
+/// MVP #6 (ADR-0006, DoD): замок не подтвердил unlock за 10 c → 502
+/// `unlock_timeout`, поездка failed, самокат offline, попытка RideAttempt →
+/// failed, в outbox — `rental.unlock-failed.v1` (юзер уведомлён) и статус
+/// самоката. Юзер может повторить попытку — новая RideAttempt.
+#[tokio::test]
+#[ignore = "requires live Postgres (make up && make migrate); waits real 10s ack timeout"]
+async fn unlock_timeout_compensates_ride_scooter_and_hold() {
+    let mut fx = Fixture::setup().await;
+    let scooter = fx.scooter().await;
+    fx.state.locks = rental_service::services::locks::Locks::Silent;
+
+    let started = std::time::Instant::now();
+    let (status, body) = post_json(
+        &fx.state,
+        "/api/v1/rides",
+        &fx.token,
+        serde_json::json!({ "scooter_id": scooter.id }).to_string(),
+    )
+    .await;
+    let waited = started.elapsed();
+    assert_eq!(status, StatusCode::BAD_GATEWAY, "body: {body}");
+    assert_eq!(body["code"], "unlock_timeout");
+    assert!(
+        waited >= std::time::Duration::from_secs(10),
+        "ack timeout must be 10s, waited {waited:?}"
+    );
+
+    // Поездка failed (amount 0), самокат offline (в выдачу не вернулся).
+    let ride_id: Uuid = sqlx::query_scalar("SELECT id FROM rentals WHERE user_id = $1")
+        .bind(fx.user_id)
+        .fetch_one(&fx.pool)
+        .await
+        .unwrap();
+    let rental = db::rentals::find_owned(&fx.pool, fx.user_id, ride_id)
+        .await
+        .unwrap();
+    assert_eq!(rental.status, "failed");
+    assert_eq!(rental.amount_kopeks, Some(0));
+    assert!(rental.finished_at.is_some());
+    assert_eq!(
+        db::scooters::find_by_id(&fx.pool, scooter.id)
+            .await
+            .unwrap()
+            .status,
+        "offline"
+    );
+
+    // RideAttempt: одна попытка, исход failed.
+    let attempts = db::ride_attempts::by_rental(&fx.pool, rental.id)
+        .await
+        .unwrap();
+    assert_eq!(attempts.len(), 1);
+    assert_eq!(attempts[0].status, "failed");
+    assert!(attempts[0].resolved_at.is_some());
+
+    // События: unlock-failed для нотификации + offline для карты.
+    let events = db::outbox::recent(&fx.pool, 20).await.unwrap();
+    let failed_event = events
+        .iter()
+        .find(|e| {
+            e.topic == "rental.unlock-failed.v1" && e.payload["rental_id"] == rental.id.to_string()
+        })
+        .expect("rental.unlock-failed.v1 in outbox");
+    assert_eq!(failed_event.payload["scooter_id"], scooter.id.to_string());
+    assert_eq!(failed_event.payload["reason"], "lock_ack_timeout");
+    assert!(events.iter().any(|e| {
+        e.topic == "scooter.status.v1"
+            && e.payload["scooter_id"] == scooter.id.to_string()
+            && e.payload["status"] == "offline"
+    }));
+
+    // Повтор юзера — новая попытка на другом самокате, лимит активных не задет.
+    fx.state.locks = Default::default();
+    let second = fx.scooter().await;
+    let (status, body) = post_json(
+        &fx.state,
+        "/api/v1/rides",
+        &fx.token,
+        serde_json::json!({ "scooter_id": second.id }).to_string(),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED, "body: {body}");
+    let retry_id: Uuid = body["id"].as_str().expect("id").parse().unwrap();
+    let retry_attempts = db::ride_attempts::by_rental(&fx.pool, retry_id)
+        .await
+        .unwrap();
+    assert_eq!(retry_attempts.len(), 1);
+    assert_eq!(
+        retry_attempts[0].status, "acked",
+        "new attempt, own outcome"
+    );
+
+    // Попытки ссылаются на rentals по FK — чистим до teardown.
+    let _ = db::ride_attempts::delete_by_rental_ids(&fx.pool, &[rental.id, retry_id]).await;
     teardown(&fx).await;
 }

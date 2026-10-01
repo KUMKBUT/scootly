@@ -304,8 +304,7 @@ pub async fn finish(
 
 /// Компенсация неудачного холда (MVP #5, ADR-0003): старт не состоялся —
 /// поездка `failed` (момент фиксируется в finished_at), самокат `rented →
-/// available`. Полная компенсация unlock-fail (offline + уведомление,
-/// ADR-0006) — MVP #6, сюда не тянется.
+/// available`. Вызывается, когда замок ещё не получал unlock (холд отклонён).
 pub async fn fail_hold(pool: &PgPool, rental_id: Uuid) -> AppResult<Option<Rental>> {
     let mut tx = pool.begin().await.map_err(internal)?;
 
@@ -349,6 +348,74 @@ pub async fn fail_hold(pool: &PgPool, rental_id: Uuid) -> AppResult<Option<Renta
 
     tx.commit().await.map_err(internal)?;
     tracing::warn!(rental_id = %rental.id, "ride failed before unlock (hold rejected)");
+    Ok(Some(rental))
+}
+
+/// Компенсация unlock-fail (MVP #6, ADR-0006): замок не подтвердил unlock за
+/// 10 c — поездка `failed` (`amount_kopeks = 0`), самокат `rented → offline`
+/// (устройство «под вопросом», в выдачу не возвращается), в outbox — событие
+/// `rental.unlock-failed.v1` (нотификация юзеру) и статус самоката.
+/// Идемпотентно: `UPDATE .. WHERE status='active'` — повторный вызов ничего
+/// не меняет и не публикует события. Void холда делает payment-service
+/// (ключ `hold:{rental_id}`), сюда не тянется.
+pub async fn fail_unlock(pool: &PgPool, rental_id: Uuid) -> AppResult<Option<Rental>> {
+    let mut tx = pool.begin().await.map_err(internal)?;
+
+    let rental = sqlx::query_as::<_, Rental>(&format!(
+        r#"
+        UPDATE rentals
+        SET status = 'failed', finished_at = now(), total_min = 0, amount_kopeks = 0
+        WHERE id = $1 AND status = 'active'
+        RETURNING {RENTAL_COLUMNS}
+        "#
+    ))
+    .bind(rental_id)
+    .fetch_optional(&mut *tx)
+    .await
+    .map_err(internal)?;
+
+    let Some(rental) = rental else {
+        tx.commit().await.map_err(internal)?;
+        return Ok(None);
+    };
+
+    let offline = sqlx::query_scalar::<_, Uuid>(
+        "UPDATE scooters SET status = 'offline'
+         WHERE id = $1 AND status = 'rented'
+         RETURNING id",
+    )
+    .bind(rental.scooter_id)
+    .fetch_optional(&mut *tx)
+    .await
+    .map_err(internal)?
+    .is_some();
+
+    super::outbox::push(
+        &mut tx,
+        "rental.unlock-failed.v1",
+        &serde_json::json!({
+            "rental_id": rental.id,
+            "scooter_id": rental.scooter_id,
+            "user_id": rental.user_id,
+            "reason": "lock_ack_timeout",
+        }),
+    )
+    .await?;
+    if offline {
+        super::outbox::push(
+            &mut tx,
+            "scooter.status.v1",
+            &serde_json::json!({ "scooter_id": rental.scooter_id, "status": "offline" }),
+        )
+        .await?;
+    }
+
+    tx.commit().await.map_err(internal)?;
+    tracing::warn!(
+        rental_id = %rental.id,
+        scooter_id = %rental.scooter_id,
+        "ride failed: unlock not acked in 10s, scooter offline"
+    );
     Ok(Some(rental))
 }
 

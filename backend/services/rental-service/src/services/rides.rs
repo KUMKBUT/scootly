@@ -3,6 +3,9 @@
 //!
 //! Оплата (MVP #5, ADR-0003/0014): холд YooKassa на старте (порядок контракта
 //! холд → unlock → 201), capture с ключом `ride:{rental_id}` на финише.
+//! Компенсация unlock-fail (MVP #6, ADR-0006): попытка unlock пишется как
+//! `RideAttempt`; нет ack за 10 c → void холда, поездка `failed`,
+//! самокат `offline`, юзер уведомлён (событие `rental.unlock-failed.v1`).
 
 use common::{AppError, AppResult};
 use uuid::Uuid;
@@ -39,7 +42,7 @@ pub async fn start(
 
     // Порядок контракта: холд → unlock → 201. Холд на максимум оценки тарифа;
     // отказ (402 no_payment_method / hold_failed) — компенсация старта: поездка
-    // failed, самокат снова available (ADR-0003; полная версия — MVP #6).
+    // failed, самокат снова available (ADR-0003).
     let hold_amount = state.tariff.hold_amount();
     if let Err(error) = state.payments.hold(user_id, rental.id, hold_amount).await {
         tracing::warn!(%error, rental_id = %rental.id, "hold rejected, compensating start");
@@ -47,17 +50,43 @@ pub async fn start(
         return Err(error);
     }
 
-    // Отказ unlock (502 unlock_timeout + компенсация: холд снят, юзер
-    // уведомлён, самокат offline) — MVP #6 (ADR-0006).
-    crate::services::locks::LockGateway::unlock(&state.locks, rental.scooter_id)
-        .await
-        .map_err(|error| {
-            tracing::error!(%error, rental_id = %rental.id, "unlock failed after start");
-            AppError::Upstream {
-                code: "unlock_timeout",
-                message: "scooter did not confirm unlock".into(),
+    // Попытка unlock пишется ДО отправки команды (ADR-0006): у каждого старта
+    // свой исход — ack или компенсация.
+    let attempt =
+        match db::ride_attempts::create_pending(&state.pool, rental.id, rental.scooter_id).await {
+            Ok(attempt) => Some(attempt),
+            Err(error) => {
+                // Без строки попытки старт не ломаем: компенсация ниже не зависит от неё.
+                tracing::error!(%error, rental_id = %rental.id, "ride_attempt write failed");
+                None
             }
-        })?;
+        };
+
+    if let Err(error) =
+        crate::services::locks::LockGateway::unlock(&state.locks, rental.scooter_id).await
+    {
+        // Замок не подтвердил unlock за 10 c (502 unlock_timeout): компенсация
+        // ADR-0006 — void холда, поездка failed, самокат offline, юзер уведомлён.
+        tracing::error!(%error, rental_id = %rental.id, "unlock failed, compensating");
+        metrics::counter!("unlock_failed_total").increment(1);
+        if let Some(attempt) = attempt {
+            if let Err(mark_error) = db::ride_attempts::mark_failed(&state.pool, attempt.id).await {
+                tracing::error!(%mark_error, attempt_id = %attempt.id, "attempt fail mark failed");
+            }
+        }
+        compensate_unlock_fail(state, &rental).await;
+        return Err(AppError::Upstream {
+            code: "unlock_timeout",
+            message: "scooter did not confirm unlock".into(),
+        });
+    }
+
+    if let Some(attempt) = attempt {
+        // Ack получен; сбой отметки не роняет начавшуюся поездку.
+        if let Err(error) = db::ride_attempts::mark_acked(&state.pool, attempt.id).await {
+            tracing::warn!(%error, attempt_id = %attempt.id, "attempt ack mark failed");
+        }
+    }
 
     metrics::counter!("rides_started_total").increment(1);
     tracing::info!(
@@ -68,6 +97,36 @@ pub async fn start(
         "ride started"
     );
     Ok(rental)
+}
+
+/// Компенсация unlock-fail (MVP #6, ADR-0006): 1) фиксация failed-состояния в
+/// PG (поездка `failed`, самокат `offline`, события `rental.unlock-failed.v1` +
+/// `scooter.status.v1` — нотификация и карта по ним придут в Mini App), затем
+/// 2) void холда у payment-service (идемпотентно, `hold:{rental_id}`).
+/// Каждый шаг — лучший из возможных: сбой одного не отменяет остальные.
+async fn compensate_unlock_fail(state: &AppState, rental: &db::rentals::Rental) {
+    if let Err(error) = db::rentals::fail_unlock(&state.pool, rental.id).await {
+        tracing::error!(%error, rental_id = %rental.id, "unlock-fail state fix failed");
+        return;
+    }
+
+    match state.payments.void(rental.id).await {
+        Ok(outcome) => tracing::info!(
+            rental_id = %rental.id,
+            ?outcome,
+            "hold voided after unlock fail"
+        ),
+        Err(error) => {
+            metrics::counter!("payment_void_failed_total").increment(1);
+            // PG держит платёж в `hold` на стороне payment-service — доведёт
+            // джоб сверки (`void.retry.v1`), деньги юзера не теряются.
+            tracing::error!(
+                %error,
+                rental_id = %rental.id,
+                "hold void failed; queued for reconciliation"
+            );
+        }
+    }
 }
 
 /// `GET /api/v1/rides/{id}`: снапшот; стоимость активной поездки считает

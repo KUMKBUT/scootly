@@ -1,5 +1,6 @@
-//! rental-service: брони (MVP #3) и поездки (MVP #4). PostgreSQL — source of truth,
-//! Redis — только TTL-триггер, снятие — фоновый джоб сверки (ADR-0003, ADR-0015).
+//! rental-service: брони (MVP #3), поездки (MVP #4) и компенсация
+//! unlock-fail (MVP #6). PostgreSQL — source of truth, Redis — только
+//! TTL-триггер, снятие — фоновый джоб сверки (ADR-0003, ADR-0015).
 
 pub mod dto;
 pub mod handlers;
@@ -31,7 +32,8 @@ pub struct AppState {
     pub redis: LazyConnection,
     /// Тариф per_minute: фикс разблокировки + цена минуты (env, копейки).
     pub tariff: Tariff,
-    /// Шлюз замков: эмуляция до проводки MQTT (MVP #6, ADR-0002/0006).
+    /// Шлюз замков: эмуляция до проводки MQTT (ADR-0002); ack-таймаут 10 c и
+    /// компенсация unlock-fail — MVP #6 (ADR-0006).
     pub locks: Locks,
     /// Шлюз оплаты: холд на старте, capture на финише (MVP #5, ADR-0003/0014).
     pub payments: Payments,
