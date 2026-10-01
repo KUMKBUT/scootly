@@ -83,13 +83,17 @@ pub fn parse_client_message(raw: &str) -> Result<ClientMsg, String> {
 
 /// Конверт серверного сообщения: `{"type","id","ts","payload"}` (websocket.md §2).
 pub fn envelope(kind: &str, payload: Value) -> String {
+    envelope_value(kind, payload).to_string()
+}
+
+/// Тот же конверт в виде `Value` — для вложения (мост Kafka → ws:users, MVP #8).
+pub fn envelope_value(kind: &str, payload: Value) -> Value {
     json!({
         "type": kind,
         "id": Uuid::new_v4(),
         "ts": chrono::Utc::now().to_rfc3339_opts(SecondsFormat::Millis, true),
         "payload": payload,
     })
-    .to_string()
 }
 
 /// Большой круг, метры (WGS84-сфероид не нужен — для фильтра карты хватает сферы).

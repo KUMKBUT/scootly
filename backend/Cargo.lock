@@ -1111,11 +1111,16 @@ name = "kafka"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "chrono",
+ "db",
+ "metrics",
  "rdkafka",
  "serde",
  "serde_json",
+ "sqlx",
  "tokio",
  "tracing",
+ "uuid",
 ]
 
 [[package]]
@@ -1394,6 +1399,19 @@ dependencies = [
  "tokio",
  "tower 0.4.13",
  "tower-http",
+ "tracing",
+ "tracing-subscriber",
+]
+
+[[package]]
+name = "outbox-relay"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "db",
+ "kafka",
+ "sqlx",
+ "tokio",
  "tracing",
  "tracing-subscriber",
 ]
@@ -3376,6 +3394,8 @@ dependencies = [
  "common",
  "futures-util",
  "http-body-util",
+ "kafka",
+ "rdkafka",
  "redis",
  "redis-client",
  "serde",

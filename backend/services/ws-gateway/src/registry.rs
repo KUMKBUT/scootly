@@ -99,6 +99,14 @@ impl Registry {
         }
     }
 
+    /// Приватное событие юзера (ride.*/payment.*/reservation.*, MVP #8):
+    /// готовый конверт уходит только его сессии; нет сессии — некуда (§6).
+    pub fn send_to_user(&self, user: uuid::Uuid, text: String) {
+        if let Some(session) = self.sessions.lock().unwrap().get(&user) {
+            let _ = session.tx.send(Message::Text(text));
+        }
+    }
+
     /// Рвёт соединения, молчащие дольше `max_idle` (websocket.md §1: 60 c).
     pub fn kick_idle(&self, max_idle: Duration) {
         let sessions = self.sessions.lock().unwrap();

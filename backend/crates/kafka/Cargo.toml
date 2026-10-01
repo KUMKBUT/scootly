@@ -10,3 +10,10 @@ serde.workspace = true
 serde_json.workspace = true
 tracing.workspace = true
 anyhow.workspace = true
+metrics.workspace = true
+uuid.workspace = true
+sqlx.workspace = true
+db = { path = "../db" }
+
+[dev-dependencies]
+chrono.workspace = true

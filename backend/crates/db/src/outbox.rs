@@ -73,6 +73,28 @@ pub async fn unpublished_by_topic(
     .map_err(|e| AppError::Internal(e.into()))
 }
 
+/// Неопубликованные записи публичных топиков (релей → Kafka, MVP #8).
+/// Внутренние retry-очереди (`capture.retry.v1` / `void.retry.v1`) в список
+/// не входят — их разбирает джоб сверки payment-service.
+pub async fn unpublished_any(
+    pool: &PgPool,
+    topics: &[&str],
+    limit: i64,
+) -> AppResult<Vec<OutboxRecord>> {
+    sqlx::query_as::<_, OutboxRecord>(
+        "SELECT id, topic, payload, created_at, published_at
+         FROM outbox
+         WHERE published_at IS NULL AND topic = ANY($1)
+         ORDER BY created_at, id
+         LIMIT $2",
+    )
+    .bind(topics)
+    .bind(limit)
+    .fetch_all(pool)
+    .await
+    .map_err(|e| AppError::Internal(e.into()))
+}
+
 /// Помечает запись опубликованной (после успешной обработки).
 pub async fn mark_published(pool: &PgPool, id: Uuid) -> AppResult<()> {
     sqlx::query("UPDATE outbox SET published_at = now() WHERE id = $1")

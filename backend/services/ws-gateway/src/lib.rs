@@ -1,8 +1,10 @@
-//! ws-gateway: WebSocket-шлюз карты (docs/api/websocket.md).
-//! Fan-out: Redis pub/sub `ws:scooters` → сессии с подпиской `subscribe.scooters`.
-//! Source of truth — PG; после реконнекта клиент делает REST-снапшот.
-//! Kafka → Redis pub/sub мост приходит с outbox-воркером (MVP #8).
+//! ws-gateway: WebSocket-шлюз (docs/api/websocket.md).
+//! Fan-out: Redis pub/sub `ws:scooters` (карта) и `ws:users` (приватные
+//! события) → сессии. Источник — мост Kafka `*.v1` → Redis pub/sub
+//! ([`bridge`], MVP #8); source of truth — PG, после реконнекта клиент
+//! делает REST-снапшот.
 
+pub mod bridge;
 pub mod fanout;
 pub mod handlers;
 pub mod protocol;

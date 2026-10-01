@@ -20,9 +20,11 @@ uuid.workspace = true
 chrono.workspace = true
 anyhow.workspace = true
 redis.workspace = true
+rdkafka.workspace = true
 futures-util = "0.3"
 common = { path = "../../crates/common" }
 redis-client = { path = "../../crates/redis-client" }
+kafka = { path = "../../crates/kafka" }
 
 [dev-dependencies]
 http-body-util.workspace = true

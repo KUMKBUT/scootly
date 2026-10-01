@@ -20,6 +20,7 @@
 | `backend/services/*` | Rust-микросервисы на Axum (auth, rental, scooter, operator, support, bot, payment, geo, telemetry, notification, ws-gateway) | `backend/services/rental-service/src/main.rs` |
 | `backend/crates/*` | Общие библиотеки (common, db, kafka, redis-client, proto) | `backend/crates/db/src/lib.rs` |
 | `backend/tools/seeder` | Сидер тестовых данных | `backend/tools/seeder/src/main.rs` |
+| `backend/tools/outbox-relay` | Outbox → Kafka релей (at-least-once, ADR-0008) | `backend/crates/kafka/src/relay.rs` |
 | `frontend/miniapp` | Telegram Mini App (React + Vite + Tailwind) | `frontend/miniapp/src/` |
 | `frontend/mobile` | React Native приложение (Expo) | `frontend/mobile/src/` |
 | `frontend/shared` | Общие типы и API-клиент | `frontend/shared/src/` |

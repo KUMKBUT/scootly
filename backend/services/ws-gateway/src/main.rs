@@ -14,6 +14,9 @@ async fn main() -> anyhow::Result<()> {
 
     let redis_url = std::env::var("REDIS_URL").context("REDIS_URL is not set")?;
     let jwt_secret = std::env::var("JWT_SECRET").context("JWT_SECRET is not set")?;
+    // Мост Kafka → Redis (MVP #8): без переменной шлюз работает, но без
+    // доменных событий (карта обновится на следующем REST-снапшоте).
+    let kafka_brokers = kafka::brokers_from_env();
     let port: u16 = std::env::var("PORT")
         .ok()
         .and_then(|p| p.parse().ok())
@@ -21,8 +24,15 @@ async fn main() -> anyhow::Result<()> {
 
     let sessions = Arc::new(Registry::new());
 
+    // Мост Kafka `*.v1` → Redis pub/sub (websocket.md §7, MVP #8):
+    // конверты карты → `ws:scooters`, приватные события → `ws:users`.
+    let bridge_brokers = kafka_brokers.clone();
+    let bridge_redis = redis_url.clone();
+    let bridge = tokio::spawn(async move {
+        ws_gateway::bridge::run(bridge_brokers, bridge_redis).await;
+    });
+
     // Fan-out карты: Redis pub/sub → подписанные сессии (websocket.md §7).
-    // Kafka → Redis pub/sub мост приходит с outbox-воркером (MVP #8).
     let fanout_registry = sessions.clone();
     let fanout_url = redis_url.clone();
     let fanout = tokio::spawn(async move {
@@ -52,6 +62,7 @@ async fn main() -> anyhow::Result<()> {
         .with_graceful_shutdown(shutdown_signal())
         .await?;
 
+    bridge.abort();
     fanout.abort();
     reaper.abort();
     Ok(())

@@ -12,6 +12,9 @@ pub const GEO_KEY: &str = "scooters:geo";
 pub const SCOOTER_TTL_SECS: u64 = 60;
 /// Канал Redis pub/sub для WS-фан-аута карты (см. docs/api/websocket.md §7).
 pub const WS_SCOOTERS_CHANNEL: &str = "ws:scooters";
+/// Канал Redis pub/sub приватных событий юзера (MVP #8): сообщение —
+/// `{"user_id": "...", "event": {...конверт...}}`, fan-out роутит по user_id.
+pub const WS_USERS_CHANNEL: &str = "ws:users";
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GeoScooter {
@@ -156,6 +159,28 @@ pub async fn hydrate(
             (hit, scooter)
         })
         .collect())
+}
+
+/// Метаданные одного самоката (`HGETALL`); `None` — TTL истёк, самоката
+/// нет в выдаче (мост Kafka → `ws:scooters`, MVP #8).
+pub async fn read_one(
+    conn: &mut ConnectionManager,
+    id: Uuid,
+) -> anyhow::Result<Option<GeoScooter>> {
+    let fields: std::collections::HashMap<String, String> = redis::cmd("HGETALL")
+        .arg(scooter_key(id))
+        .query_async(conn)
+        .await?;
+    Ok(
+        parse_hash(&fields).map(|(code, status, battery_pct, lat, lon)| GeoScooter {
+            id,
+            code,
+            lat,
+            lon,
+            status,
+            battery_pct,
+        }),
+    )
 }
 
 type HashFields = (String, String, i32, f64, f64);
