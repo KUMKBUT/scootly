@@ -28,3 +28,10 @@ export interface FinishRideRequest {
   lat?: number;
   lon?: number;
 }
+
+/** Ответ listRides (MVP #7): страница истории, свежие сверху. */
+export interface RidesPage {
+  items: Ride[];
+  /** Курсор следующей страницы (started_at); null — страниц больше нет. */
+  next_before: string | null;
+}

@@ -2,3 +2,5 @@
 export * from './types/payment';
 export * from './types/ride';
 export * from './utils/tariff';
+export * from './api-client/http';
+export * from './api-client/history';

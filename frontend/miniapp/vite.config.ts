@@ -7,7 +7,7 @@ export default defineConfig({
   resolve: {
     alias: {
       // workspace:* source, чтобы Vite собирал TS из shared как свой код
-      shared: fileURLToPath(new URL('../../shared/src', import.meta.url)),
+      shared: fileURLToPath(new URL('../shared/src', import.meta.url)),
     },
   },
   server: {
