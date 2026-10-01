@@ -10,6 +10,7 @@ use axum::Router;
 use common::auth::JwtState;
 use redis_client::LazyConnection;
 use services::locks::Locks;
+use services::payments::Payments;
 use services::tariff::Tariff;
 use sqlx::PgPool;
 
@@ -32,6 +33,8 @@ pub struct AppState {
     pub tariff: Tariff,
     /// Шлюз замков: эмуляция до проводки MQTT (MVP #6, ADR-0002/0006).
     pub locks: Locks,
+    /// Шлюз оплаты: холд на старте, capture на финише (MVP #5, ADR-0003/0014).
+    pub payments: Payments,
 }
 
 impl FromRef<AppState> for JwtState {

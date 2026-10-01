@@ -79,6 +79,27 @@ pub struct RidesPageDto {
     pub next_before: Option<DateTime<Utc>>,
 }
 
+/// openapi `Payment` — блок оплаты в чеке поездки (MVP #5).
+#[derive(Debug, Clone, Serialize)]
+pub struct PaymentDto {
+    pub id: Uuid,
+    pub ride_id: Option<Uuid>,
+    /// `hold | captured | canceled | refunded`.
+    pub status: String,
+    pub amount_kopeks: i64,
+}
+
+impl From<crate::services::payments::PaymentRecord> for PaymentDto {
+    fn from(p: crate::services::payments::PaymentRecord) -> Self {
+        Self {
+            id: p.id,
+            ride_id: Some(p.rental_id),
+            status: p.status,
+            amount_kopeks: p.amount_kopeks,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize)]
 pub struct RideDto {
     pub id: Uuid,
@@ -91,9 +112,9 @@ pub struct RideDto {
     pub total_min: Option<i32>,
     /// Для active — текущая стоимость на момент ответа (тик в UI).
     pub amount_kopeks: Option<i32>,
-    /// Платёж появится с проводкой YooKassa (MVP #5).
+    /// Чек: холд на активной поездке, capture на завершённой (MVP #5).
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub payment: Option<serde_json::Value>,
+    pub payment: Option<PaymentDto>,
 }
 
 impl RideDto {
@@ -117,5 +138,14 @@ impl RideDto {
             amount_kopeks,
             payment: None,
         }
+    }
+
+    /// Навешивает платёж (чек) из payment-service.
+    pub fn with_payment(
+        mut self,
+        payment: Option<crate::services::payments::PaymentRecord>,
+    ) -> Self {
+        self.payment = payment.map(PaymentDto::from);
+        self
     }
 }

@@ -24,6 +24,8 @@ metrics.workspace = true
 common = { path = "../../crates/common" }
 db = { path = "../../crates/db" }
 redis-client = { path = "../../crates/redis-client" }
+tonic.workspace = true
+proto = { path = "../../crates/proto" }
 
 [dev-dependencies]
 http-body-util.workspace = true

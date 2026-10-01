@@ -1,0 +1,63 @@
+// ADR-0003, ADR-0014: payment-service — единственная точка интеграции с YooKassa.
+// Синхронный канал rental-service → payment-service: холд на старте поездки,
+// capture на финише (идемпотентность ride:{rental_id}), платёж для чека.
+// Внутренний канал: только внутри кластера, наружу не публикуется.
+syntax = "proto3";
+
+package scootly.payment.v1;
+
+service PaymentOrchestrator {
+  // Холд на старте: payments.status = hold, ключ hold:{rental_id}.
+  // Ошибки: failed_precondition = no_payment_method, unavailable = hold_failed.
+  rpc Hold(HoldRequest) returns (HoldReply);
+
+  // Capture на финише: hold → captured, ключ ride:{rental_id}.
+  // Повторный вызов безопасен (уже captured → already_captured).
+  // Эквайринг недоступен → queued_for_retry (джоб сверки, ADR-0003).
+  rpc Capture(CaptureRequest) returns (CaptureReply);
+
+  // Платёж поездки для чека (openapi Ride.payment); нет записи → payment не задан.
+  rpc RentalPayment(RentalPaymentRequest) returns (RentalPaymentReply);
+}
+
+message HoldRequest {
+  string user_id = 1;            // uuid
+  string rental_id = 2;          // uuid
+  // Сумма холда в копейках (оценка максимума: фикс разблокировки + N минут).
+  uint64 hold_amount_kopeks = 3;
+}
+
+message HoldReply {
+  string payment_id = 1;         // uuid
+  string yookassa_id = 2;
+  // hold
+  string status = 3;
+  uint64 amount_kopeks = 4;
+}
+
+message CaptureRequest {
+  string rental_id = 1;          // uuid
+  uint64 amount_kopeks = 2;      // финальная сумма (tariff, копейки)
+}
+
+message CaptureReply {
+  // captured | already_captured | queued_for_retry
+  string outcome = 1;
+}
+
+message RentalPaymentRequest {
+  string rental_id = 1;          // uuid
+}
+
+message Payment {
+  string id = 1;                 // uuid
+  string rental_id = 2;          // uuid
+  // hold | captured | canceled | refunded
+  string status = 3;
+  uint64 amount_kopeks = 4;
+  string created_at = 5;         // RFC 3339
+}
+
+message RentalPaymentReply {
+  Payment payment = 1;
+}

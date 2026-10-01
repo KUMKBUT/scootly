@@ -32,8 +32,10 @@ fn test_state() -> AppState {
         tariff: Tariff {
             unlock_kopeks: UNLOCK_KOPEKS,
             per_min_kopeks: PER_MIN_KOPEKS,
+            hold_minutes: 60,
         },
         locks: Default::default(),
+        payments: Default::default(),
     }
 }
 
@@ -196,8 +198,10 @@ impl Fixture {
             tariff: Tariff {
                 unlock_kopeks: UNLOCK_KOPEKS,
                 per_min_kopeks: PER_MIN_KOPEKS,
+                hold_minutes: 60,
             },
             locks: Default::default(),
+            payments: Default::default(),
         };
         let user_id = setup_user(&pool).await;
         Self {
@@ -697,6 +701,55 @@ async fn finish_with_half_coordinates_is_400() {
     )
     .await;
     assert_eq!(status, StatusCode::OK);
+
+    teardown(&fx).await;
+}
+
+/// MVP #5 (ADR-0003): холд отклонён → 402 hold_failed, компенсация старта —
+/// поездка failed, самокат снова available (не «зависает» в rented).
+#[tokio::test]
+#[ignore = "requires live Postgres (make up && make migrate)"]
+async fn hold_rejection_is_402_and_compensated() {
+    let mut fx = Fixture::setup().await;
+    let scooter = fx.scooter().await;
+    fx.state.payments = rental_service::services::payments::Payments::Failing;
+
+    let (status, body) = post_json(
+        &fx.state,
+        "/api/v1/rides",
+        &fx.token,
+        serde_json::json!({ "scooter_id": scooter.id }).to_string(),
+    )
+    .await;
+    assert_eq!(status, StatusCode::PAYMENT_REQUIRED, "body: {body}");
+    assert_eq!(body["code"], "hold_failed");
+
+    let rental = db::rentals::find_owned(&fx.pool, fx.user_id, Uuid::nil()).await;
+    assert!(rental.is_err(), "no ride visible under nil id");
+
+    // Самокат вернулся в выдачу, активной поездки у юзера нет.
+    let scooter_now = db::scooters::find_by_id(&fx.pool, scooter.id)
+        .await
+        .unwrap();
+    assert_eq!(scooter_now.status, "available");
+    let failed: i64 =
+        sqlx::query_scalar("SELECT count(*) FROM rentals WHERE user_id = $1 AND status = 'failed'")
+            .bind(fx.user_id)
+            .fetch_one(&fx.pool)
+            .await
+            .unwrap();
+    assert_eq!(failed, 1, "start is compensated as failed ride");
+
+    // После отказа юзер может стартовать снова (лимит активных не задет).
+    fx.state.payments = Default::default();
+    let (status, body) = post_json(
+        &fx.state,
+        "/api/v1/rides",
+        &fx.token,
+        serde_json::json!({ "scooter_id": scooter.id }).to_string(),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED, "body: {body}");
 
     teardown(&fx).await;
 }

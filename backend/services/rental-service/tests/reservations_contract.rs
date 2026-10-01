@@ -35,8 +35,10 @@ fn test_state() -> AppState {
         tariff: Tariff {
             unlock_kopeks: 2900,
             per_min_kopeks: 800,
+            hold_minutes: 60,
         },
         locks: Default::default(),
+        payments: Default::default(),
     }
 }
 
@@ -174,8 +176,10 @@ impl Fixture {
             tariff: Tariff {
                 unlock_kopeks: 2900,
                 per_min_kopeks: 800,
+                hold_minutes: 60,
             },
             locks: Default::default(),
+            payments: Default::default(),
         };
         let user_id = setup_user(&pool).await;
         Self {

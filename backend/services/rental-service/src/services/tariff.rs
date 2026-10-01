@@ -6,15 +6,20 @@ use chrono::Utc;
 
 pub const ENV_UNLOCK_KOPEKS: &str = "TARIFF_UNLOCK_KOPEKS";
 pub const ENV_PER_MIN_KOPEKS: &str = "TARIFF_PER_MIN_KOPEKS";
+/// На сколько минут подряд берём холд (максимум оценки поездки).
+pub const ENV_HOLD_MINUTES: &str = "TARIFF_HOLD_MINUTES";
 
-/// Дефолты, если env не задан: 29 ₽ разблокировка + 8 ₽/мин.
+/// Дефолты, если env не задан: 29 ₽ разблокировка + 8 ₽/мин, холд на 60 мин.
 pub const DEFAULT_UNLOCK_KOPEKS: i32 = 2900;
 pub const DEFAULT_PER_MIN_KOPEKS: i32 = 800;
+pub const DEFAULT_HOLD_MINUTES: i32 = 60;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Tariff {
     pub unlock_kopeks: i32,
     pub per_min_kopeks: i32,
+    /// На сколько минут берётся холд (оценка максимума поездки).
+    pub hold_minutes: i32,
 }
 
 /// Стоимости на момент времени: минуты для UI-тика и сумма.
@@ -36,7 +41,15 @@ impl Tariff {
         Self {
             unlock_kopeks: read(ENV_UNLOCK_KOPEKS, DEFAULT_UNLOCK_KOPEKS),
             per_min_kopeks: read(ENV_PER_MIN_KOPEKS, DEFAULT_PER_MIN_KOPEKS),
+            hold_minutes: read(ENV_HOLD_MINUTES, DEFAULT_HOLD_MINUTES).max(1),
         }
+    }
+
+    /// Сумма холда на старте (MVP #5, ADR-0003): фикс разблокировки +
+    /// цена минуты × hold_minutes — оценка максимума поездки в копейках.
+    pub fn hold_amount(&self) -> i32 {
+        self.unlock_kopeks
+            .saturating_add(self.per_min_kopeks.saturating_mul(self.hold_minutes))
     }
 
     /// Расчёт на момент `now`: неполная минута считается целой, минимум —
@@ -65,6 +78,7 @@ mod tests {
         Tariff {
             unlock_kopeks: 2900,
             per_min_kopeks: 800,
+            hold_minutes: 60,
         }
     }
 
@@ -115,5 +129,16 @@ mod tests {
         let (start, now) = at(i64::MAX / 10_000_000);
         let cost = tariff().cost(start, now);
         assert!(cost.amount_kopeks > 0);
+    }
+
+    #[test]
+    fn hold_amount_is_unlock_plus_hold_minutes() {
+        assert_eq!(tariff().hold_amount(), 2900 + 800 * 60);
+        let small = Tariff {
+            unlock_kopeks: 0,
+            per_min_kopeks: 1,
+            hold_minutes: 1,
+        };
+        assert_eq!(small.hold_amount(), 1);
     }
 }

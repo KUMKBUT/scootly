@@ -85,7 +85,10 @@ async fn get_ride(
     Path(id): Path<Uuid>,
 ) -> AppResult<Json<RideDto>> {
     let rental = services::rides::snapshot(&state, claims.sub, id).await?;
-    Ok(Json(RideDto::from_rental(rental, state.tariff)))
+    let payment = services::rides::ride_payment(&state, rental.id).await;
+    Ok(Json(
+        RideDto::from_rental(rental, state.tariff).with_payment(payment),
+    ))
 }
 
 #[tracing::instrument(skip_all, fields(user_id = %claims.sub, ride_id = %id))]
@@ -100,5 +103,8 @@ async fn finish_ride(
         None => (None, None),
     };
     let rental = services::rides::finish(&state, claims.sub, id, lat, lon).await?;
-    Ok(Json(RideDto::from_rental(rental, state.tariff)))
+    let payment = services::rides::ride_payment(&state, rental.id).await;
+    Ok(Json(
+        RideDto::from_rental(rental, state.tariff).with_payment(payment),
+    ))
 }

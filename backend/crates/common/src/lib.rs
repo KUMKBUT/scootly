@@ -25,6 +25,10 @@ pub enum AppError {
     /// замок/шлюз не подтвердил команду, пользователь ретраит (ADR-0006).
     #[error("{message}")]
     Upstream { code: &'static str, message: String },
+    /// 402 с машинным кодом из openapi (`no_payment_method`, `hold_failed`):
+    /// нет привязанной карты или холд не прошёл (ADR-0003).
+    #[error("{message}")]
+    PaymentRequired { code: &'static str, message: String },
     #[error("internal error")]
     Internal(#[from] anyhow::Error),
 }
@@ -37,6 +41,7 @@ impl AppError {
             AppError::Unauthorized(_) => StatusCode::UNAUTHORIZED,
             AppError::Conflict { .. } => StatusCode::CONFLICT,
             AppError::Upstream { .. } => StatusCode::BAD_GATEWAY,
+            AppError::PaymentRequired { .. } => StatusCode::PAYMENT_REQUIRED,
             AppError::Internal(_) => StatusCode::INTERNAL_SERVER_ERROR,
         }
     }
@@ -49,6 +54,7 @@ impl AppError {
             AppError::Unauthorized(_) => "unauthorized",
             AppError::Conflict { code, .. } => code,
             AppError::Upstream { code, .. } => code,
+            AppError::PaymentRequired { code, .. } => code,
             AppError::Internal(_) => "internal",
         }
     }

@@ -94,6 +94,12 @@ CREATE TABLE IF NOT EXISTS payments (
     idempotency_key TEXT UNIQUE NOT NULL
 );
 
+-- MVP #5 (миграция 0005): история платежей и чек по поездке.
+CREATE INDEX IF NOT EXISTS idx_payments_user_created
+    ON payments (user_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_payments_rental
+    ON payments (rental_id);
+
 CREATE TABLE IF NOT EXISTS subscriptions (
     user_id UUID PRIMARY KEY REFERENCES users(id),
     status VARCHAR(16) NOT NULL DEFAULT 'trial'

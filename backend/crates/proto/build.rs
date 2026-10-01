@@ -8,6 +8,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     std::fs::create_dir_all("src/generated")?;
     tonic_prost_build::configure()
         .out_dir("src/generated")
-        .compile_protos(&["proto/scootly/scooter/v1/scooter.proto"], &["proto"])?;
+        .compile_protos(
+            &[
+                "proto/scootly/scooter/v1/scooter.proto",
+                "proto/scootly/payment/v1/payment.proto",
+            ],
+            &["proto"],
+        )?;
     Ok(())
 }

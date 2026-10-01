@@ -1,6 +1,6 @@
 use anyhow::Context;
 use common::auth::JwtState;
-use rental_service::services::{locks::Locks, tariff::Tariff};
+use rental_service::services::{locks::Locks, payments::Payments, tariff::Tariff};
 use rental_service::{router, AppState, SWEEP_INTERVAL_SECS};
 use std::net::SocketAddr;
 use std::sync::Arc;
@@ -28,6 +28,9 @@ async fn main() -> anyhow::Result<()> {
         .unwrap_or(SWEEP_INTERVAL_SECS);
     // Тариф per_minute (docs/mvp.md §2): копейки, значения в env.
     let tariff = Tariff::from_env();
+    // Шлюз оплаты (MVP #5): PAYMENT_SERVICE_URL → gRPC payment-service,
+    // без переменной — эмуляция (локальный стенд без эквайринга).
+    let payments = Payments::from_env();
 
     let pool = db::create_pool(&database_url).await?;
     sqlx::migrate!("../../crates/db/migrations")
@@ -40,6 +43,7 @@ async fn main() -> anyhow::Result<()> {
         redis: redis_client::LazyConnection::new(&redis_url)?,
         tariff,
         locks: Locks::Emulated,
+        payments,
     };
 
     // Джоб сверки броней (ADR-0003): TTL-автоснятие работает и без Redis.

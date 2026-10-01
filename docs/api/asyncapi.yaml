@@ -160,6 +160,7 @@ x-kafka-retention:
   scooter.status.v1: 7d
   support.tickets.v1: 30d
   payment.events.v1: 30d
+  capture.retry.v1: 7d
   notification.send.v1: 3d
   operator.tasks.v1: 7d
   shift.events.v1: 7d
@@ -174,6 +175,7 @@ x-kafka-dlq:
   scooter.status.v1.dlq: 14d
   support.tickets.v1.dlq: 14d
   payment.events.v1.dlq: 14d
+  capture.retry.v1.dlq: 14d
   notification.send.v1.dlq: 14d
   operator.tasks.v1.dlq: 14d
   shift.events.v1.dlq: 14d

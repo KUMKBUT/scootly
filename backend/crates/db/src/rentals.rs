@@ -302,6 +302,56 @@ pub async fn finish(
     Ok(FinishOutcome::Finished(rental))
 }
 
+/// Компенсация неудачного холда (MVP #5, ADR-0003): старт не состоялся —
+/// поездка `failed` (момент фиксируется в finished_at), самокат `rented →
+/// available`. Полная компенсация unlock-fail (offline + уведомление,
+/// ADR-0006) — MVP #6, сюда не тянется.
+pub async fn fail_hold(pool: &PgPool, rental_id: Uuid) -> AppResult<Option<Rental>> {
+    let mut tx = pool.begin().await.map_err(internal)?;
+
+    let rental = sqlx::query_as::<_, Rental>(&format!(
+        r#"
+        UPDATE rentals
+        SET status = 'failed', finished_at = now(), total_min = 0, amount_kopeks = 0
+        WHERE id = $1 AND status = 'active'
+        RETURNING {RENTAL_COLUMNS}
+        "#
+    ))
+    .bind(rental_id)
+    .fetch_optional(&mut *tx)
+    .await
+    .map_err(internal)?;
+
+    let Some(rental) = rental else {
+        tx.commit().await.map_err(internal)?;
+        return Ok(None);
+    };
+
+    let released = sqlx::query_scalar::<_, Uuid>(
+        "UPDATE scooters SET status = 'available'
+         WHERE id = $1 AND status = 'rented'
+         RETURNING id",
+    )
+    .bind(rental.scooter_id)
+    .fetch_optional(&mut *tx)
+    .await
+    .map_err(internal)?
+    .is_some();
+
+    if released {
+        super::outbox::push(
+            &mut tx,
+            "scooter.status.v1",
+            &serde_json::json!({ "scooter_id": rental.scooter_id, "status": "available" }),
+        )
+        .await?;
+    }
+
+    tx.commit().await.map_err(internal)?;
+    tracing::warn!(rental_id = %rental.id, "ride failed before unlock (hold rejected)");
+    Ok(Some(rental))
+}
+
 pub async fn find_owned(pool: &PgPool, user_id: Uuid, rental_id: Uuid) -> AppResult<Rental> {
     sqlx::query_as::<_, Rental>(&format!(
         "SELECT {RENTAL_COLUMNS} FROM rentals WHERE id = $1 AND user_id = $2"
