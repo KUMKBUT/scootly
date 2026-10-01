@@ -159,6 +159,9 @@ async fn full_login_refresh_me_cycle() {
     assert_eq!(body["telegram_id"], 4242);
 
     // 3. Ротация пары по refresh-токену.
+    // iat в JWT — с точностью до секунды: без паузы refresh в ту же секунду
+    // выдаёт байт-в-байт тот же access-токен, и ротация неотличима (флейк).
+    tokio::time::sleep(std::time::Duration::from_millis(1100)).await;
     let (status, rotated) = post_json(
         state,
         "/api/v1/auth/refresh",
