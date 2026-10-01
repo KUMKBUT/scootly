@@ -153,6 +153,8 @@ x-kafka-retention:
   booking.created.v1: 7d
   booking.expired.v1: 7d
   rental.events.v1: 7d
+  rental.started.v1: 7d
+  rental.finished.v1: 7d
   booking.expired.v1: 7d
   scooter.telemetry.v1: 24h
   scooter.status.v1: 7d

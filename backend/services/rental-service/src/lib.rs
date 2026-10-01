@@ -1,4 +1,4 @@
-//! rental-service: бронирование (MVP #3). PostgreSQL — source of truth,
+//! rental-service: брони (MVP #3) и поездки (MVP #4). PostgreSQL — source of truth,
 //! Redis — только TTL-триггер, снятие — фоновый джоб сверки (ADR-0003, ADR-0015).
 
 pub mod dto;
@@ -9,6 +9,8 @@ use axum::extract::FromRef;
 use axum::Router;
 use common::auth::JwtState;
 use redis_client::LazyConnection;
+use services::locks::Locks;
+use services::tariff::Tariff;
 use sqlx::PgPool;
 
 /// TTL брони: 10 минут, бесплатно (docs/mvp.md §2 #3).
@@ -18,11 +20,18 @@ pub const RESERVATION_TTL_SECS: i64 = 10 * 60;
 /// снимаются из PG даже без Redis-триггера.
 pub const SWEEP_INTERVAL_SECS: u64 = 10;
 
+/// openapi listRides: default 20, максимум 100.
+pub const MAX_HISTORY_LIMIT: i64 = 100;
+
 #[derive(Clone)]
 pub struct AppState {
     pub pool: PgPool,
     pub jwt: JwtState,
     pub redis: LazyConnection,
+    /// Тариф per_minute: фикс разблокировки + цена минуты (env, копейки).
+    pub tariff: Tariff,
+    /// Шлюз замков: эмуляция до проводки MQTT (MVP #6, ADR-0002/0006).
+    pub locks: Locks,
 }
 
 impl FromRef<AppState> for JwtState {
@@ -42,5 +51,10 @@ mod tests {
     #[test]
     fn reservation_ttl_is_10_minutes() {
         assert_eq!(RESERVATION_TTL_SECS, 600);
+    }
+
+    #[test]
+    fn history_limit_caps_at_openapi_maximum() {
+        assert_eq!(MAX_HISTORY_LIMIT, 100);
     }
 }

@@ -20,6 +20,7 @@ sqlx.workspace = true
 uuid.workspace = true
 chrono.workspace = true
 anyhow.workspace = true
+metrics.workspace = true
 common = { path = "../../crates/common" }
 db = { path = "../../crates/db" }
 redis-client = { path = "../../crates/redis-client" }

@@ -3,6 +3,7 @@
 
 pub mod bookings;
 pub mod outbox;
+pub mod rentals;
 pub mod scooters;
 pub mod users;
 

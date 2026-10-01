@@ -43,15 +43,20 @@ CREATE TABLE IF NOT EXISTS rentals (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id UUID NOT NULL REFERENCES users(id),
     scooter_id UUID NOT NULL REFERENCES scooters(id),
+    -- MVP #4 (миграция 0004): старт из брони — booking.status = converted.
+    reservation_id UUID REFERENCES bookings (id),
     tariff VARCHAR(16) NOT NULL DEFAULT 'per_minute'
         CHECK (tariff IN ('per_minute', 'package')),
+    -- failed: unlock не подтверждён (ADR-0006, MVP #6).
     status VARCHAR(16) NOT NULL DEFAULT 'active'
-        CHECK (status IN ('active', 'finished')),
+        CHECK (status IN ('active', 'finished', 'failed')),
     hold_id TEXT NOT NULL,
     started_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     finished_at TIMESTAMPTZ,
     total_min INT,
-    amount_kopeks INT
+    amount_kopeks INT,
+    finished_lat DOUBLE PRECISION,
+    finished_lon DOUBLE PRECISION
 );
 
 CREATE TABLE IF NOT EXISTS bookings (
@@ -69,6 +74,11 @@ CREATE UNIQUE INDEX IF NOT EXISTS uq_active_booking_per_scooter
     ON bookings (scooter_id) WHERE status = 'active';
 CREATE UNIQUE INDEX IF NOT EXISTS uq_active_booking_per_user
     ON bookings (user_id) WHERE status = 'active';
+-- MVP #4: не больше одной активной поездки на юзера (409 ride_in_progress).
+CREATE UNIQUE INDEX IF NOT EXISTS uq_active_ride_per_user
+    ON rentals (user_id) WHERE status = 'active';
+CREATE INDEX IF NOT EXISTS idx_rentals_user_started
+    ON rentals (user_id, started_at DESC);
 
 CREATE TABLE IF NOT EXISTS payments (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),

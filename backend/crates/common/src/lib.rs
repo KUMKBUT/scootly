@@ -21,6 +21,10 @@ pub enum AppError {
     /// `reservation_active_exists`, ...) — для UI Mini App.
     #[error("{message}")]
     Conflict { code: &'static str, message: String },
+    /// 502 с машинным кодом из openapi (`unlock_timeout`, `lock_ack_timeout`):
+    /// замок/шлюз не подтвердил команду, пользователь ретраит (ADR-0006).
+    #[error("{message}")]
+    Upstream { code: &'static str, message: String },
     #[error("internal error")]
     Internal(#[from] anyhow::Error),
 }
@@ -32,6 +36,7 @@ impl AppError {
             AppError::Validation(_) => StatusCode::BAD_REQUEST,
             AppError::Unauthorized(_) => StatusCode::UNAUTHORIZED,
             AppError::Conflict { .. } => StatusCode::CONFLICT,
+            AppError::Upstream { .. } => StatusCode::BAD_GATEWAY,
             AppError::Internal(_) => StatusCode::INTERNAL_SERVER_ERROR,
         }
     }
@@ -43,6 +48,7 @@ impl AppError {
             AppError::Validation(_) => "validation_error",
             AppError::Unauthorized(_) => "unauthorized",
             AppError::Conflict { code, .. } => code,
+            AppError::Upstream { code, .. } => code,
             AppError::Internal(_) => "internal",
         }
     }

@@ -1,3 +1,6 @@
 //! Бизнес-логика rental-service.
 
+pub mod locks;
 pub mod reservations;
+pub mod rides;
+pub mod tariff;

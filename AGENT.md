@@ -32,7 +32,7 @@
 | `docs/architecture/landscape/workspace.dsl` | System Context (юзер + платформа + внешние) | `docs/architecture/landscape/` |
 | `docs/architecture/platform/workspace.dsl` | Контейнеры, компоненты, dynamic, deployment | `docs/architecture/platform/` |
 | `docs/architecture/operator-app/workspace.dsl` | RN-приложение оператора | `docs/architecture/operator-app/` |
-| `docs/architecture/adr` | ADR 0001–0015 (axum, mqtt, hold-capture, operator-rn, kafka-retention, unlock-fail, auth-boundary, schema-versioning, mqtt-dedup, dlq, geo-slo, offline-idempotency, telegram-risk, resilience, reservation-ttl) | `docs/architecture/adr/` |
+| `docs/architecture/adr` | ADR 0001–0016 (axum, mqtt, hold-capture, operator-rn, kafka-retention, unlock-fail, auth-boundary, schema-versioning, mqtt-dedup, dlq, geo-slo, offline-idempotency, telegram-risk, resilience, reservation-ttl, ride-lifecycle) | `docs/architecture/adr/` |
 | `docs/api` | OpenAPI/AsyncAPI | `docs/api/openapi.yaml`, `docs/api/asyncapi.yaml` |
 | `docs/db/schema.sql` | Эталонная схема БД | `docs/db/schema.sql` |
 | `scripts/` | Обёртки dev/migrate/seed/gen-openapi | `scripts/dev.sh` |
@@ -157,7 +157,7 @@ frontend/miniapp/src/{main.tsx,App.tsx,features/,components/,pages/}
   0003 hold-capture, 0004 operator-rn, 0005 kafka-retention, 0006 unlock-fail,
   0007 auth-boundary, 0008 schema-versioning, 0009 mqtt-dedup, 0010 dlq,
   0011 geo-slo, 0012 offline-idempotency, 0013 telegram-dependency,
-  0014 resilience, 0015 reservation-ttl).
+  0014 resilience, 0015 reservation-ttl, 0016 ride-lifecycle).
   Нумерация сквозная.
 - **OpenAPI** — `docs/api/openapi.yaml`, генерируется из кода (`utoipa`, скрипт `scripts/gen-openapi.sh`).
 - **AsyncAPI** — `docs/api/asyncapi.yaml` + `x-kafka-retention` / `x-kafka-dlq` / `x-kafka-durability`.

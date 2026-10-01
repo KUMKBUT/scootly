@@ -14,6 +14,7 @@ use axum::http::{Request, StatusCode};
 use common::auth::JwtState;
 use db::create_pool_lazy;
 use http_body_util::BodyExt;
+use rental_service::services::tariff::Tariff;
 use rental_service::{router, AppState, RESERVATION_TTL_SECS};
 use serde_json::Value;
 use sqlx::PgPool;
@@ -31,6 +32,11 @@ fn test_state() -> AppState {
         pool: create_pool_lazy("postgres://invalid:invalid@127.0.0.1:1/none").expect("lazy pool"),
         jwt: JwtState(Arc::new(JWT_SECRET.to_owned())),
         redis: redis_client::LazyConnection::new("redis://127.0.0.1:1/7").expect("lazy redis"),
+        tariff: Tariff {
+            unlock_kopeks: 2900,
+            per_min_kopeks: 800,
+        },
+        locks: Default::default(),
     }
 }
 
@@ -165,6 +171,11 @@ impl Fixture {
             jwt: JwtState(Arc::new(JWT_SECRET.to_owned())),
             // Redis недоступен намеренно: бронь обязана работать без него (§5.1).
             redis: redis_client::LazyConnection::new("redis://127.0.0.1:1/7").expect("lazy redis"),
+            tariff: Tariff {
+                unlock_kopeks: 2900,
+                per_min_kopeks: 800,
+            },
+            locks: Default::default(),
         };
         let user_id = setup_user(&pool).await;
         Self {
