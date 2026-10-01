@@ -16,7 +16,12 @@ const CENTER_LAT: f64 = 43.2380;
 const CENTER_LON: f64 = 76.8890;
 
 fn unique_code(prefix: &str) -> String {
-    format!("{prefix}-{}", uuid::Uuid::new_v4().simple())
+    // scooters.code — VARCHAR(32): хвост uuid обрезаем под лимит.
+    let suffix = 32 - prefix.len() - 1;
+    format!(
+        "{prefix}-{}",
+        &uuid::Uuid::new_v4().simple().to_string()[..suffix]
+    )
 }
 
 async fn test_pool() -> sqlx::PgPool {

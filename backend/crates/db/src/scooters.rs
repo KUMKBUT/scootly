@@ -76,8 +76,9 @@ pub fn bounding_box(lat: f64, lon: f64, radius_m: u32) -> (f64, f64, f64, f64) {
 }
 
 /// Самокаты вокруг точки, ближайшие первыми. Offline не выдаётся.
-/// `ids` пустой → искать все в радиусе; иначе только перечисленные
-/// (кейс «в GEO-кэше нет записи по самокату», ADR-0011).
+/// `ids` пустой → искать все в радиусе; иначе только перечисленные —
+/// без радиуса: вызывающий явно попросил эти id (кейс «в GEO-кэше нет
+/// записи по самокату», ADR-0011).
 pub async fn find_nearby(
     pool: &PgPool,
     lat: f64,
@@ -100,10 +101,12 @@ pub async fn find_nearby(
             FROM scooters
             WHERE status <> 'offline'
               AND ($5::uuid[] IS NULL OR id = ANY($5))
-              AND lat BETWEEN $6 AND $7
-              AND lon BETWEEN $8 AND $9
+              AND (
+                  $5::uuid[] IS NOT NULL
+                  OR (lat BETWEEN $6 AND $7 AND lon BETWEEN $8 AND $9)
+              )
         ) nearby
-        WHERE distance_m <= $3
+        WHERE $5::uuid[] IS NOT NULL OR distance_m <= $3
         ORDER BY distance_m
         LIMIT $4
         "#,
