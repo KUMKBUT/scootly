@@ -9,9 +9,11 @@ path = "src/main.rs"
 
 [dependencies]
 tokio.workspace = true
+axum.workspace = true
 sqlx.workspace = true
 tracing.workspace = true
 tracing-subscriber.workspace = true
 anyhow.workspace = true
+common = { path = "../../crates/common" }
 db = { path = "../../crates/db" }
 kafka = { path = "../../crates/kafka" }

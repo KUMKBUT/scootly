@@ -11,6 +11,7 @@ async fn main() -> anyhow::Result<()> {
     tracing_subscriber::fmt()
         .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
         .init();
+    common::metrics::install();
 
     let database_url = std::env::var("DATABASE_URL").context("DATABASE_URL is not set")?;
     let jwt_secret = std::env::var("JWT_SECRET").context("JWT_SECRET is not set")?;
@@ -52,7 +53,8 @@ async fn main() -> anyhow::Result<()> {
         Duration::from_secs(sweep_interval),
     ));
 
-    let app = router(state).layer(tower_http::trace::TraceLayer::new_for_http());
+    let app =
+        common::metrics::route(router(state).layer(tower_http::trace::TraceLayer::new_for_http()));
 
     let addr = SocketAddr::from(([0, 0, 0, 0], port));
     tracing::info!(

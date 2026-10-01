@@ -10,8 +10,9 @@ async fn main() {
     tracing_subscriber::fmt()
         .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
         .init();
+    common::metrics::install();
 
-    let app = Router::new().route("/health", get(health));
+    let app = common::metrics::route(Router::new().route("/health", get(health)));
 
     let addr = SocketAddr::from(([0, 0, 0, 0], 9000));
     tracing::info!("notification-service listening on {}", addr);

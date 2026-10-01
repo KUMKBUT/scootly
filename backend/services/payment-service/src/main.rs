@@ -13,6 +13,7 @@ async fn main() -> anyhow::Result<()> {
     tracing_subscriber::fmt()
         .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
         .init();
+    common::metrics::install();
 
     let database_url = std::env::var("DATABASE_URL").context("DATABASE_URL is not set")?;
     let jwt_secret = std::env::var("JWT_SECRET").context("JWT_SECRET is not set")?;
@@ -67,7 +68,7 @@ async fn main() -> anyhow::Result<()> {
     let listener = tokio::net::TcpListener::bind(addr).await?;
     axum::serve(
         listener,
-        router(state).layer(tower_http::trace::TraceLayer::new_for_http()),
+        common::metrics::route(router(state).layer(tower_http::trace::TraceLayer::new_for_http())),
     )
     .with_graceful_shutdown(shutdown_signal("http"))
     .await?;

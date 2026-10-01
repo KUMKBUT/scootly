@@ -1,6 +1,7 @@
 //! Общие типы, ошибки и утилиты для всех сервисов Scootly.
 
 pub mod auth;
+pub mod metrics;
 pub mod telemetry;
 
 use axum::http::StatusCode;

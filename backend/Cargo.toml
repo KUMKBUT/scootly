@@ -30,6 +30,7 @@ serde_json = "1"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 metrics = "0.22"
+metrics-exporter-prometheus = "0.15"
 redis = { version = "0.25", features = ["tokio-comp", "connection-manager"] }
 rdkafka = { version = "0.36", features = ["cmake-build"] }
 uuid = { version = "1", features = ["v4", "serde"] }

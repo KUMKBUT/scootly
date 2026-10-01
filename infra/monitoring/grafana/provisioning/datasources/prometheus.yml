@@ -1,0 +1,12 @@
+# Источник данных для дашбордов (MVP #9): тот же docker-network,
+# что и scrape-цели из prometheus.yml.
+apiVersion: 1
+
+datasources:
+  - name: Prometheus
+    uid: prometheus
+    type: prometheus
+    access: proxy
+    url: http://prometheus:9090
+    isDefault: true
+    editable: false

@@ -9,6 +9,7 @@ async fn main() -> anyhow::Result<()> {
     tracing_subscriber::fmt()
         .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
         .init();
+    common::metrics::install();
 
     let database_url = std::env::var("DATABASE_URL").context("DATABASE_URL is not set")?;
     let port: u16 = std::env::var("PORT")
@@ -41,9 +42,12 @@ async fn main() -> anyhow::Result<()> {
     let addr = SocketAddr::from(([0, 0, 0, 0], port));
     tracing::info!("scooter-service http on {} (gRPC on {})", addr, grpc_port);
     let listener = tokio::net::TcpListener::bind(addr).await?;
-    axum::serve(listener, scooter_service::http_router())
-        .with_graceful_shutdown(shutdown_signal("http"))
-        .await?;
+    axum::serve(
+        listener,
+        common::metrics::route(scooter_service::http_router()),
+    )
+    .with_graceful_shutdown(shutdown_signal("http"))
+    .await?;
 
     grpc.abort();
     Ok(())

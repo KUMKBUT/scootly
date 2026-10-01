@@ -13,3 +13,5 @@ chrono.workspace = true
 tracing.workspace = true
 axum.workspace = true
 jsonwebtoken.workspace = true
+metrics.workspace = true
+metrics-exporter-prometheus.workspace = true

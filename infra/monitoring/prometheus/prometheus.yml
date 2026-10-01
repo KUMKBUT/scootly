@@ -24,3 +24,5 @@ scrape_configs:
           - 'geo-service:9000'
           - 'telemetry-service:9000'
           - 'notification-service:9000'
+          - 'ws-gateway:9000'
+          - 'outbox-relay:9000'

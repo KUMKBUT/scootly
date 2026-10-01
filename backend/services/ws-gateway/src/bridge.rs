@@ -7,6 +7,8 @@ use rdkafka::config::ClientConfig;
 use rdkafka::consumer::{Consumer, StreamConsumer};
 use rdkafka::Message;
 use serde_json::{json, Value};
+use std::collections::HashSet;
+use std::sync::{Mutex, OnceLock};
 use uuid::Uuid;
 
 use redis_client::geo::{WS_SCOOTERS_CHANNEL, WS_USERS_CHANNEL};
@@ -21,6 +23,9 @@ pub const TOPICS: &[&str] = &[
     "payment.events.v1",
     "scooter.status.v1",
 ];
+
+/// Порог низкого заряда для бизнес-метрики `battery_low_total` (MVP #9).
+pub const BATTERY_LOW_PCT: i32 = 15;
 
 const RECONNECT_DELAY: std::time::Duration = std::time::Duration::from_secs(1);
 /// Один consumer-group на все поды шлюза: событие читается один раз,
@@ -162,6 +167,7 @@ async fn map_scooter_status(
     let Some(geo) = geo else {
         return (None, None);
     };
+    track_battery_low(id, geo.battery_pct);
     (
         Some("scooter.updated"),
         Some(json!({
@@ -172,6 +178,27 @@ async fn map_scooter_status(
             "battery_pct": geo.battery_pct,
         })),
     )
+}
+
+/// Переход самоката в низкий заряд — инкремент `battery_low_total` один раз
+/// на переход (не на каждое событие статуса), возврат в норму сбрасывает
+/// состояние. Возвращает `true`, если самокат только что ушёл в low.
+/// Пока телеметрия — эмуляция (MVP §3), заряд приходит из geo-хэша вместе со
+/// статусом; после появления IoT-стрима счётчик переедет в telemetry-service.
+fn track_battery_low(scooter_id: &str, battery_pct: i32) -> bool {
+    static LOW: OnceLock<Mutex<HashSet<String>>> = OnceLock::new();
+    let low = LOW.get_or_init(|| Mutex::new(HashSet::new()));
+    let mut low = low.lock().expect("low-battery set poisoned");
+    if battery_pct <= BATTERY_LOW_PCT {
+        if low.insert(scooter_id.to_owned()) {
+            metrics::counter!("battery_low_total").increment(1);
+            tracing::info!(scooter_id, battery_pct, "scooter battery low");
+            return true;
+        }
+    } else {
+        low.remove(scooter_id);
+    }
+    false
 }
 
 /// Приватные события юзера: Kafka payload → (user_id, тип конверта, payload)
@@ -356,6 +383,18 @@ mod tests {
         assert!(
             map_user_event("rental.started.v1", &json!({"rental_id": Uuid::new_v4()})).is_none()
         );
+    }
+
+    #[test]
+    fn battery_low_counts_on_transition_only() {
+        let id = format!("bt-{}", Uuid::new_v4());
+        assert!(!track_battery_low(&id, 80));
+        assert!(track_battery_low(&id, 10));
+        // Всё ещё low — повторных инкрементов нет.
+        assert!(!track_battery_low(&id, 3));
+        // Заряд восстановился → состояние сброшено, следующий low снова +1.
+        assert!(!track_battery_low(&id, 90));
+        assert!(track_battery_low(&id, BATTERY_LOW_PCT));
     }
 
     #[tokio::test]
