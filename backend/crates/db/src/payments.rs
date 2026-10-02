@@ -208,6 +208,31 @@ pub async fn find_by_yookassa_id(pool: &PgPool, yookassa_id: &str) -> AppResult<
     .map_err(internal)
 }
 
+/// Холды без движения дольше `older_than_secs` — кандидаты на сверку
+/// с эквайрингом (MVP #11, ADR-0003: раз в 5 минут). Списанных/отменённых
+/// здесь нет; активная поездка дольше порога просто лишний раз сверяется.
+pub async fn stale_holds(
+    pool: &PgPool,
+    older_than_secs: i64,
+    limit: i64,
+) -> AppResult<Vec<Payment>> {
+    sqlx::query_as::<_, Payment>(&format!(
+        r#"
+        SELECT {PAYMENT_COLUMNS}
+        FROM payments
+        WHERE status = 'hold'
+          AND created_at < now() - make_interval(secs => $1)
+        ORDER BY created_at
+        LIMIT $2
+        "#
+    ))
+    .bind(older_than_secs)
+    .bind(limit)
+    .fetch_all(pool)
+    .await
+    .map_err(internal)
+}
+
 /// История платежей юзера (openapi listPayments): свежие сверху,
 /// фильтр по поездке, курсорный `limit`.
 pub async fn history(

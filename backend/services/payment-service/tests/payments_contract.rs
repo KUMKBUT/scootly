@@ -1,24 +1,29 @@
-//! Контракт payment-service (MVP #5): методы оплаты, история, вебхук YooKassa,
-//! gRPC PaymentOrchestrator (холд → capture), джоб сверки.
+//! Контракт payment-service (MVP #5, #11): методы оплаты, история, вебхук
+//! YooKassa, gRPC PaymentOrchestrator (холд → capture), джоб сверки,
+//! настоящий Http-шлюз YooKassa против mock-сервера API.
 //!
 //! Прогон: `cargo test --workspace`. Тесты, требующие Postgres, помечены
 //! `#[ignore]` — запускаются после `make up && make migrate`:
 //! `cargo test -p payment-service -- --ignored`.
 //!
-//! Кейсы docs/mvp.md §2 #5 + DoD: идемпотентность `ride:{rental_id}` —
+//! Кейсы docs/mvp.md §2 #5/#11 + DoD: идемпотентность `ride:{rental_id}` —
 //! повторные capture / вебхук не дают двойного списания; capture при
-//! недоступности эквайринга уходит в retry-очередь (ADR-0003/0014).
+//! недоступности эквайринга уходит в retry-очередь; вебхук верифицируется
+//! состоянием YooKassa, а не телом уведомления (ADR-0003/0014).
 
 use axum::body::Body;
-use axum::http::{Request, StatusCode};
+use axum::extract::{Path, State};
+use axum::http::{HeaderMap, Request, StatusCode};
+use axum::routing::{get, post};
+use axum::{Json, Router};
 use common::auth::JwtState;
 use db::create_pool_lazy;
 use http_body_util::BodyExt;
 use payment_service::dto::WebhookNotification;
 use payment_service::services::payments::{self, CaptureResult};
-use payment_service::services::yookassa::YooKassa;
+use payment_service::services::yookassa::{HttpYooKassa, YkStatus, YooKassa, YooKassaGateway};
 use payment_service::{router, AppState};
-use serde_json::Value;
+use serde_json::{json, Value};
 use sqlx::PgPool;
 use std::sync::Arc;
 use tower::util::ServiceExt;
@@ -754,4 +759,455 @@ async fn grpc_cancel_hold_voids_unlock_fail_hold() {
 
     server.abort();
     teardown(&fx).await;
+}
+
+// ── Mock YooKassa API (MVP #11): Http-шлюз против локального сервера ────────
+
+/// Записанные запросы + статус, которым отвечает GET /payments/{id}.
+struct MockYk {
+    base: String,
+    handle: tokio::task::JoinHandle<()>,
+    requests: Arc<std::sync::Mutex<Vec<String>>>,
+    get_status: Arc<std::sync::Mutex<String>>,
+}
+
+impl MockYk {
+    fn set_get_status(&self, status: &str) {
+        *self.get_status.lock().unwrap() = status.to_owned();
+    }
+
+    fn recorded(&self) -> Vec<String> {
+        self.requests.lock().unwrap().clone()
+    }
+}
+
+async fn spawn_mock_yookassa(initial_get_status: &str) -> MockYk {
+    let requests: Arc<std::sync::Mutex<Vec<String>>> = Default::default();
+    let get_status: Arc<std::sync::Mutex<String>> =
+        Arc::new(std::sync::Mutex::new(initial_get_status.to_owned()));
+    let ctx = MockCtx {
+        requests: requests.clone(),
+        get_status: get_status.clone(),
+        prefix: Uuid::new_v4().simple().to_string()[..8].to_owned(),
+        counter: Default::default(),
+    };
+    let app = Router::new()
+        .route("/payments", post(mock_create).get(mock_get_list))
+        .route("/payments/:id", get(mock_get))
+        .route("/payments/:id/capture", post(mock_capture))
+        .route("/payments/:id/cancel", post(mock_cancel))
+        .with_state(ctx);
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let base = format!("http://{}", listener.local_addr().unwrap());
+    let handle = tokio::spawn(async move {
+        axum::serve(listener, app).await.unwrap();
+    });
+    MockYk {
+        base,
+        handle,
+        requests,
+        get_status,
+    }
+}
+
+#[derive(Clone)]
+struct MockCtx {
+    requests: Arc<std::sync::Mutex<Vec<String>>>,
+    get_status: Arc<std::sync::Mutex<String>>,
+    /// Уникальные id платежей: UNIQUE `payments.yookassa_id` в PG (префикс
+    /// инстанса + счётчик, чтобы параллельные тесты не спорили).
+    prefix: String,
+    counter: Arc<std::sync::atomic::AtomicU32>,
+}
+
+fn next_mock_id(ctx: &MockCtx) -> String {
+    let n = ctx
+        .counter
+        .fetch_add(1, std::sync::atomic::Ordering::Relaxed)
+        + 1;
+    format!("mock-{}-{n}", ctx.prefix)
+}
+
+fn idem(headers: &HeaderMap) -> String {
+    headers
+        .get("idempotency-key")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("none")
+        .to_owned()
+}
+
+/// POST /payments: холд — обязан быть двухстадийным (`capture: false`).
+async fn mock_create(
+    State(ctx): State<MockCtx>,
+    headers: HeaderMap,
+    Json(body): Json<Value>,
+) -> Json<Value> {
+    let yk_id = next_mock_id(&ctx);
+    ctx.requests.lock().unwrap().push(format!(
+        "POST /payments idem={} capture={}",
+        idem(&headers),
+        body["capture"]
+    ));
+    Json(json!({
+        "id": yk_id,
+        "status": "waiting_for_capture",
+        "amount": body["amount"],
+        "confirmation": {
+            "type": "redirect",
+            "confirmation_url": format!("https://yoomoney.ru/checkout/payments/v2/contract?yk_id={yk_id}")
+        }
+    }))
+}
+
+async fn mock_capture(
+    State(ctx): State<MockCtx>,
+    Path(id): Path<String>,
+    headers: HeaderMap,
+) -> Json<Value> {
+    ctx.requests.lock().unwrap().push(format!(
+        "POST /payments/{id}/capture idem={}",
+        idem(&headers)
+    ));
+    Json(json!({
+        "id": id,
+        "status": "succeeded",
+        "amount": { "value": "97.00", "currency": "RUB" }
+    }))
+}
+
+async fn mock_cancel(State(ctx): State<MockCtx>, Path(id): Path<String>) -> Json<Value> {
+    ctx.requests
+        .lock()
+        .unwrap()
+        .push(format!("POST /payments/{id}/cancel"));
+    Json(json!({
+        "id": id,
+        "status": "canceled",
+        "amount": { "value": "500.00", "currency": "RUB" }
+    }))
+}
+
+async fn mock_get(State(ctx): State<MockCtx>, Path(id): Path<String>) -> Json<Value> {
+    let status = ctx.get_status.lock().unwrap().clone();
+    Json(json!({
+        "id": id,
+        "status": status,
+        "amount": { "value": "500.00", "currency": "RUB" }
+    }))
+}
+
+async fn mock_get_list(State(_ctx): State<MockCtx>) -> Json<Value> {
+    Json(json!({ "type": "list", "items": [] }))
+}
+
+/// Сервер-имитация с отказом авторизации: проверка маппинга HTTP-ошибок.
+async fn spawn_mock_unauthorized() -> (String, tokio::task::JoinHandle<()>) {
+    async fn denied() -> (StatusCode, Json<Value>) {
+        (
+            StatusCode::UNAUTHORIZED,
+            Json(json!({ "description": "invalid credentials" })),
+        )
+    }
+    let app = Router::new()
+        .route("/payments", post(denied))
+        .route("/payments/:id", get(denied));
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let base = format!("http://{}", listener.local_addr().unwrap());
+    let handle = tokio::spawn(async move {
+        axum::serve(listener, app).await.unwrap();
+    });
+    (base, handle)
+}
+
+fn http_state(pool: &PgPool, base: &str) -> AppState {
+    AppState {
+        pool: pool.clone(),
+        jwt: JwtState(Arc::new(JWT_SECRET.to_owned())),
+        yookassa: YooKassa::Http(HttpYooKassa::new(base, "shop-1", "secret-1").expect("gateway")),
+    }
+}
+
+fn yk_webhook(yookassa_id: &str, event: &str) -> WebhookNotification {
+    WebhookNotification {
+        event: event.to_owned(),
+        object: payment_service::dto::WebhookObject {
+            id: yookassa_id.to_owned(),
+            status: None,
+            paid: None,
+            metadata: None,
+        },
+    }
+}
+
+/// Возраст холда > HOLD_STALE_SECS — кандидат на сверку с YooKassa.
+async fn backdate_payment(pool: &PgPool, rental_id: Uuid) {
+    sqlx::query("UPDATE payments SET created_at = now() - interval '2 hours' WHERE rental_id = $1")
+        .bind(rental_id)
+        .execute(pool)
+        .await
+        .expect("backdate payment");
+}
+
+/// Полный диалог с API: холд (capture=false, Idempotency-Key), capture, cancel,
+/// get; строки `amount.value` разбираются в копейки без float.
+#[tokio::test]
+async fn http_gateway_speaks_yookassa_api() {
+    let mock = spawn_mock_yookassa("canceled").await;
+    let gateway = HttpYooKassa::new(&mock.base, "shop-1", "secret-1").expect("gateway");
+
+    let hold = gateway.create_hold("hold:111", 50_000).await.expect("hold");
+    let yk_id = hold.yookassa_id.clone();
+    assert!(yk_id.starts_with("mock-"), "unique id from mock: {yk_id}");
+    assert_eq!(hold.status, YkStatus::WaitingForCapture);
+    assert_eq!(hold.amount_kopeks, 50_000, "amount echoed by mock");
+    assert!(
+        hold.confirmation_url
+            .as_deref()
+            .unwrap_or_default()
+            .starts_with("https://"),
+        "confirmation_url for card binding"
+    );
+
+    let captured = gateway
+        .capture(&yk_id, 9_700, "ride:111")
+        .await
+        .expect("capture");
+    assert_eq!(captured.status, YkStatus::Succeeded);
+    assert_eq!(captured.amount_kopeks, 9_700, "'97.00' parsed to kopeks");
+
+    let canceled = gateway.cancel_hold(&yk_id).await.expect("cancel");
+    assert_eq!(canceled.status, YkStatus::Canceled);
+
+    let got = gateway.get(&yk_id).await.expect("get");
+    assert_eq!(got.status, YkStatus::Canceled);
+    assert_eq!(got.amount_kopeks, 50_000, "'500.00' parsed to kopeks");
+
+    // Идемпотентность и двухстадийность: Idempotency-Key + capture=false.
+    let recorded = mock.recorded();
+    assert!(
+        recorded
+            .iter()
+            .any(|r| r == "POST /payments idem=hold:111 capture=false"),
+        "recorded: {recorded:?}"
+    );
+    assert!(recorded
+        .iter()
+        .any(|r| r == &format!("POST /payments/{yk_id}/capture idem=ride:111")));
+    assert!(recorded
+        .iter()
+        .any(|r| r == &format!("POST /payments/{yk_id}/cancel")));
+    mock.handle.abort();
+}
+
+/// HTTP-ошибка API (плохие ключи) → Upstream-ошибка с описанием от YooKassa:
+/// наверх не роняет запрос юзера, retry — джобом сверки (ADR-0014).
+#[tokio::test]
+async fn http_gateway_maps_api_errors_to_upstream() {
+    let (base, handle) = spawn_mock_unauthorized().await;
+    let gateway = HttpYooKassa::new(&base, "shop-1", "wrong").expect("gateway");
+
+    let error = gateway.get("mock-1").await.expect_err("must fail");
+    assert!(
+        matches!(error, common::AppError::Upstream { .. }),
+        "got: {error:?}"
+    );
+    assert!(error.to_string().contains("401 Unauthorized"));
+    assert!(error.to_string().contains("invalid credentials"));
+    handle.abort();
+}
+
+/// Вебхук верифицируется состоянием YooKassa, а не телом уведомления:
+/// поддельный `payment.succeeded` при отменённом в YooKassa платеже холд
+/// снимает, а не списывает (openapi paymentWebhook, MVP #11).
+#[tokio::test]
+#[ignore = "requires live Postgres (make up && make migrate)"]
+async fn webhook_trusts_gateway_state_over_body() {
+    let mut fx = Fixture::setup().await;
+    let mock = spawn_mock_yookassa("waiting_for_capture").await;
+    let state = http_state(&fx.pool, &mock.base);
+
+    let rental = fx.rental().await;
+    payments::hold(&state, fx.user_id, rental.id, 50_000)
+        .await
+        .expect("hold via http gateway");
+    let payment = db::payments::find_by_rental(&fx.pool, rental.id)
+        .await
+        .unwrap()
+        .expect("payment");
+    assert!(payment.yookassa_id.starts_with("mock-"));
+
+    // Тело кричит succeeded, YooKassa отвечает canceled — верим YooKassa.
+    mock.set_get_status("canceled");
+    payments::apply_webhook(
+        &state,
+        &yk_webhook(&payment.yookassa_id, "payment.succeeded"),
+    )
+    .await;
+    let after = db::payments::find_by_rental(&fx.pool, rental.id)
+        .await
+        .unwrap()
+        .expect("payment");
+    assert_eq!(after.status, "canceled", "forged body must not capture");
+    assert_eq!(
+        fx.outbox_count_for_payment("payment.events.v1", payment.id)
+            .await,
+        1,
+        "single canceled event, no capture"
+    );
+
+    // Обратный случай: потерянный succeeded догоняется canceled-телом —
+    // списание применяется по состоянию эквайринга (ADR-0003 #4).
+    fx.close_rental(rental.id).await;
+    let rental2 = fx.rental().await;
+    payments::hold(&state, fx.user_id, rental2.id, 50_000)
+        .await
+        .expect("hold 2");
+    let payment2 = db::payments::find_by_rental(&fx.pool, rental2.id)
+        .await
+        .unwrap()
+        .expect("payment 2");
+    mock.set_get_status("succeeded");
+    payments::apply_webhook(
+        &state,
+        &yk_webhook(&payment2.yookassa_id, "payment.canceled"),
+    )
+    .await;
+    let captured = db::payments::find_by_rental(&fx.pool, rental2.id)
+        .await
+        .unwrap()
+        .expect("payment 2");
+    assert_eq!(captured.status, "captured");
+    assert_eq!(captured.amount_kopeks, 50_000);
+    assert_eq!(
+        fx.outbox_count_for_payment("payment.events.v1", payment2.id)
+            .await,
+        1,
+        "exactly one captured event"
+    );
+    teardown(&fx).await;
+    mock.handle.abort();
+}
+
+/// Шлюз недоступен → вебхук не применяется вовсе (ждём ретрай от YooKassa):
+/// статус в PG не меняется, событий нет.
+#[tokio::test]
+#[ignore = "requires live Postgres (make up && make migrate)"]
+async fn webhook_without_gateway_verification_is_skipped() {
+    let mut fx = Fixture::setup().await;
+    let hold_state = state_with(&fx.pool, YooKassa::Emulated);
+    // Мёртвый адрес: соединение мгновенно отказывает.
+    let dead = http_state(&fx.pool, "http://127.0.0.1:1");
+
+    let rental = fx.rental().await;
+    payments::hold(&hold_state, fx.user_id, rental.id, 50_000)
+        .await
+        .expect("hold");
+    let payment = db::payments::find_by_rental(&fx.pool, rental.id)
+        .await
+        .unwrap()
+        .expect("payment");
+
+    let events_before = fx
+        .outbox_count_for_payment("payment.events.v1", payment.id)
+        .await;
+    payments::apply_webhook(
+        &dead,
+        &yk_webhook(&payment.yookassa_id, "payment.succeeded"),
+    )
+    .await;
+    assert_eq!(
+        db::payments::find_by_rental(&fx.pool, rental.id)
+            .await
+            .unwrap()
+            .expect("payment")
+            .status,
+        "hold",
+        "unverified webhook must not change state"
+    );
+    assert_eq!(
+        fx.outbox_count_for_payment("payment.events.v1", payment.id)
+            .await
+            - events_before,
+        0
+    );
+    teardown(&fx).await;
+}
+
+/// Сверка с YooKassa раз в 5 мин (ADR-0003, MVP #11): stale-холд, чей
+/// succeeded-вебхук потерялся, доводится до captured; canceled — снимается;
+/// свежий холд с waiting_for_capture (живая поездка) не трогается.
+#[tokio::test]
+#[ignore = "requires live Postgres (make up && make migrate)"]
+async fn reconcile_syncs_stale_holds_with_gateway() {
+    let mut fx = Fixture::setup().await;
+    let mock = spawn_mock_yookassa("succeeded").await;
+    let state = http_state(&fx.pool, &mock.base);
+
+    // 1) Потерянный succeeded: stale-холд → captured, событие одно.
+    let rental = fx.rental().await;
+    payments::hold(&state, fx.user_id, rental.id, 50_000)
+        .await
+        .expect("hold");
+    backdate_payment(&fx.pool, rental.id).await;
+
+    let processed = payment_service::services::reconcile::reconcile_once(&state)
+        .await
+        .expect("reconcile");
+    assert!(processed >= 1);
+    let captured = db::payments::find_by_rental(&fx.pool, rental.id)
+        .await
+        .unwrap()
+        .expect("payment");
+    assert_eq!(captured.status, "captured");
+    assert_eq!(
+        captured.amount_kopeks, 50_000,
+        "amount taken from YooKassa state"
+    );
+    assert_eq!(
+        fx.outbox_count_for_payment("payment.events.v1", captured.id)
+            .await,
+        1
+    );
+
+    // 2) Холд отменён в YooKassa (истёк) → PG canceled.
+    fx.close_rental(rental.id).await;
+    let rental2 = fx.rental().await;
+    payments::hold(&state, fx.user_id, rental2.id, 50_000)
+        .await
+        .expect("hold 2");
+    backdate_payment(&fx.pool, rental2.id).await;
+    mock.set_get_status("canceled");
+    payment_service::services::reconcile::reconcile_once(&state)
+        .await
+        .expect("reconcile 2");
+    assert_eq!(
+        db::payments::find_by_rental(&fx.pool, rental2.id)
+            .await
+            .unwrap()
+            .expect("payment 2")
+            .status,
+        "canceled"
+    );
+
+    // 3) Свежий холд, эквайринг ждёт capture (живая поездка) — не трогается.
+    fx.close_rental(rental2.id).await;
+    let rental3 = fx.rental().await;
+    payments::hold(&state, fx.user_id, rental3.id, 50_000)
+        .await
+        .expect("hold 3");
+    mock.set_get_status("waiting_for_capture");
+    payment_service::services::reconcile::reconcile_once(&state)
+        .await
+        .expect("reconcile 3");
+    assert_eq!(
+        db::payments::find_by_rental(&fx.pool, rental3.id)
+            .await
+            .unwrap()
+            .expect("payment 3")
+            .status,
+        "hold",
+        "fresh hold with waiting_for_capture stays untouched"
+    );
+    teardown(&fx).await;
+    mock.handle.abort();
 }

@@ -5,7 +5,7 @@ use common::{AppError, AppResult};
 use db::payments::{self, CaptureOutcome, Payment};
 use uuid::Uuid;
 
-use super::yookassa::{YooKassa, YooKassaGateway};
+use super::yookassa::{YkStatus, YooKassa, YooKassaGateway};
 use crate::AppState;
 
 /// Холд на старте поездки: запись `payments` со статусом `hold`, ключ
@@ -75,33 +75,49 @@ pub async fn capture(
         )
         .await
     {
-        Ok(()) => match payments::capture(&state.pool, rental_id, amount_kopeks).await? {
-            CaptureOutcome::Captured(p) => {
-                metrics::counter!("payment_captures_total").increment(1);
-                tracing::info!(
-                    payment_id = %p.id,
-                    amount_kopeks,
-                    "payment captured"
-                );
-                CaptureResult::Captured
+        // Эквайринг принял capture (succeeded / pending — доведёт сверка).
+        Ok(yk) if matches!(yk.status, YkStatus::Succeeded | YkStatus::Pending) => {
+            match payments::capture(&state.pool, rental_id, amount_kopeks).await? {
+                CaptureOutcome::Captured(p) => {
+                    metrics::counter!("payment_captures_total").increment(1);
+                    tracing::info!(
+                        payment_id = %p.id,
+                        amount_kopeks,
+                        "payment captured"
+                    );
+                    CaptureResult::Captured
+                }
+                // Повторный capture: строка одна, второго списания нет по построению.
+                CaptureOutcome::AlreadyCaptured(_) => CaptureResult::AlreadyCaptured,
+                CaptureOutcome::Canceled(_) => {
+                    return Err(AppError::Conflict {
+                        code: "capture_failed",
+                        message: format!("hold for rental {rental_id} is canceled"),
+                    });
+                }
+                CaptureOutcome::NotFound => {
+                    return Err(AppError::NotFound(format!(
+                        "payment for rental {rental_id}"
+                    )));
+                }
             }
-            // Повторный capture: строка одна, второго списания нет по построению.
-            CaptureOutcome::AlreadyCaptured(_) => CaptureResult::AlreadyCaptured,
-            CaptureOutcome::Canceled(_) => {
-                return Err(AppError::Conflict {
-                    code: "capture_failed",
-                    message: format!("hold for rental {rental_id} is canceled"),
-                });
-            }
-            CaptureOutcome::NotFound => {
-                return Err(AppError::NotFound(format!(
-                    "payment for rental {rental_id}"
-                )));
-            }
-        },
+        }
+        // Эквайринг ответил, но capture не подтверждён (canceled / unknown):
+        // истину установит джоб сверки, повтор — из retry-очереди.
+        Ok(yk) => {
+            metrics::counter!("payment_captures_retry_total").increment(1);
+            tracing::warn!(
+                status = ?yk.status,
+                rental_id = %rental_id,
+                "capture not confirmed by acquiring, queued for retry"
+            );
+            queue_capture_retry(state, &payment, amount_kopeks, 0).await?;
+            CaptureResult::QueuedForRetry
+        }
         Err(error) => {
             // ADR-0003/0014: не роняем финиш — очередь на повтор в outbox
             // (retry 3x backoff → DLQ, ADR-0010; релей в Kafka — MVP #8).
+            // Отказ/чужой статус от эквайринга разбирает джоб сверки.
             metrics::counter!("payment_captures_retry_total").increment(1);
             tracing::warn!(%error, rental_id = %rental_id, "capture failed, queued for retry");
             queue_capture_retry(state, &payment, amount_kopeks, 0).await?;
@@ -131,9 +147,14 @@ async fn queue_capture_retry(
     .await
 }
 
-/// Вебхук YooKassa (openapi paymentWebhook, без JWT): подлинность — повторным
-/// запросом состояния платежа в шлюз; обработка идемпотентна по статусу в PG.
-/// Наверх всегда 200 (openapi): разбор — асинхронный, ошибки только в логах.
+/// Вебхук YooKassa (openapi paymentWebhook, без JWT, MVP #11): подлинность —
+/// повторным запросом состояния платежа в шлюз; обработка идемпотентна по
+/// статусу в PG. Наверх всегда 200 (openapi): разбор — асинхронный, ошибки
+/// только в логах.
+///
+/// ADR-0003 #4: вебхуки приходят не по порядку — действуем по верифицированному
+/// статусу эквайринга, а не по порядку доставки. Шлюз недоступен — молча ждём
+/// ретрай вебхука от YooKassa.
 #[tracing::instrument(skip_all, fields(event = %notification.event, yookassa_id = %notification.object.id))]
 pub async fn apply_webhook(state: &AppState, notification: &crate::dto::WebhookNotification) {
     let payment = match payments::find_by_yookassa_id(&state.pool, &notification.object.id).await {
@@ -148,18 +169,37 @@ pub async fn apply_webhook(state: &AppState, notification: &crate::dto::WebhookN
         }
     };
 
-    match notification.event.as_str() {
-        // Холд подтверждён эквайрингом (waiting_for_capture в YooKassa):
-        // в нашей модели это тот же `hold` — делать нечего.
+    // Верификация: доверяем только состоянию платежа в YooKassa.
+    let verified = match state.yookassa.get(&notification.object.id).await {
+        Ok(yk) => yk,
+        Err(error) => {
+            tracing::warn!(%error, "webhook verification failed, waiting for retry");
+            return;
+        }
+    };
+
+    // Неизвестный статус (эмуляция) — верим полю `event` уведомления.
+    let event = match verified.status {
+        YkStatus::Succeeded => "payment.succeeded".to_owned(),
+        YkStatus::Canceled => "payment.canceled".to_owned(),
+        // Холд подтверждён/ждёт — в нашей модели это тот же `hold`, делать нечего.
+        YkStatus::WaitingForCapture | YkStatus::Pending => return,
+        YkStatus::Unknown => notification.event.clone(),
+    };
+
+    match event.as_str() {
         "payment.waiting_for_capture" => {}
         // Списание подтверждено: держим PG в согласии, даже если наш capture
         // ещё не дошёл (джоб сверки уже не будет спорить с эквайрингом).
         "payment.succeeded" => match payment.rental_id {
             Some(rental_id) => {
-                if let Ok(CaptureOutcome::Captured(p)) =
-                    payments::capture(&state.pool, rental_id, payment.amount_kopeks).await
-                {
-                    tracing::info!(payment_id = %p.id, "webhook captured payment");
+                match payments::capture(&state.pool, rental_id, payment.amount_kopeks).await {
+                    Ok(CaptureOutcome::Captured(p)) => {
+                        metrics::counter!("payment_captures_total").increment(1);
+                        tracing::info!(payment_id = %p.id, "webhook captured payment");
+                    }
+                    Ok(_) => {}
+                    Err(error) => tracing::error!(%error, "webhook capture failed"),
                 }
             }
             None => tracing::warn!(payment_id = %payment.id, "payment without ride"),
@@ -199,19 +239,24 @@ pub async fn history(
 
 /// Привязка карты (MVP — максимум одна): платёж-привязка в YooKassa,
 /// клиент открывает `confirmation_url` (openapi createPaymentMethod).
+/// URL отдаёт шлюз: настоящий — из ответа API, эмуляция — «на столе».
 pub async fn bind_method(state: &AppState, user_id: Uuid) -> AppResult<String> {
     let yk = state
         .yookassa
         .create_hold(&format!("bind:{user_id}"), 100)
         .await?;
     tracing::info!(user_id = %user_id, yookassa_id = %yk.yookassa_id, "card binding payment created");
-    Ok(format!(
-        "https://yoomoney.ru/checkout/payments/v2/contract?yk_id={}",
-        yk.yookassa_id
-    ))
+    Ok(yk.confirmation_url.unwrap_or_else(|| {
+        format!(
+            "https://yoomoney.ru/checkout/payments/v2/contract?yk_id={}",
+            yk.yookassa_id
+        )
+    }))
 }
 
-/// Привязанные карты (эмуляция: одна тестовая карта, режим Emulated).
+/// Привязанные карты (MVP — максимум одна). В эмуляции — тестовая карта;
+/// с настоящим шлюзом сохранённые карты появятся вместе с хранением
+/// `payment_method_id` (после MVP) — пока список пуст.
 pub fn list_methods(yookassa: &YooKassa) -> Vec<crate::dto::PaymentMethodDto> {
     match yookassa {
         YooKassa::Emulated => vec![crate::dto::PaymentMethodDto {
@@ -219,7 +264,7 @@ pub fn list_methods(yookassa: &YooKassa) -> Vec<crate::dto::PaymentMethodDto> {
             card_last4: "4444".to_owned(),
             card_network: "mir".to_owned(),
         }],
-        YooKassa::Failing => Vec::new(),
+        YooKassa::Http(_) | YooKassa::Failing => Vec::new(),
     }
 }
 
@@ -247,7 +292,7 @@ pub async fn cancel_hold(state: &AppState, rental_id: Uuid) -> AppResult<CancelR
     }
 
     match state.yookassa.cancel_hold(&payment.yookassa_id).await {
-        Ok(()) => match payments::cancel_hold(&state.pool, rental_id).await? {
+        Ok(_) => match payments::cancel_hold(&state.pool, rental_id).await? {
             Some(p) => {
                 metrics::counter!("payment_voids_total").increment(1);
                 tracing::info!(payment_id = %p.id, yookassa_id = %p.yookassa_id, "hold canceled (void)");

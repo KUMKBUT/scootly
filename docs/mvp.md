@@ -38,7 +38,7 @@
 |---|--------|------------------------|--------|
 | 9 | **Метрики → Grafana** ✅ | `metrics-exporter-prometheus` (`:9000`) во всех сервисах со счётчиками; дашборды Grafana: `rides_started_total`, `unlock_failed_total`, `battery_low_total` | §5, `infra/monitoring` |
 | 10 | **Реальные замки (MQTT)** ✅ | `Locks::Emulated` → MQTT-шлюз: команды unlock/lock, ack за 10 c, дедуп `msg_id` в Redis | ADR-0002, ADR-0006, ADR-0009 |
-| 11 | **YooKassa в staging** | Реальные ключи эквайринга, вебхук `payment.succeeded/canceled`, сверка с YooKassa раз в 5 мин | ADR-0003, ADR-0014, openapi `paymentWebhook` |
+| 11 | **YooKassa в staging** ✅ | Реальные ключи эквайринга, вебхук `payment.succeeded/canceled`, сверка с YooKassa раз в 5 мин | ADR-0003, ADR-0014, openapi `paymentWebhook` |
 | 12 | **Сервисы в docker-compose** | Все сервисы + `outbox-relay` в compose с healthcheck-зависимостями: `make up` поднимает полный стек | `docker-compose.yml` |
 | 13 | **DoD-прогон на staging** | Полный цикл (1)–(6) e2e без ручных правок в БД; k6 `p95 unlock < 2 c`; отметка чекбоксов §5 и §5.1 | §5, `tests/load/rental-unlock.js` |
 

@@ -25,6 +25,7 @@ uuid.workspace = true
 chrono.workspace = true
 anyhow.workspace = true
 tonic.workspace = true
+reqwest.workspace = true
 proto = { path = "../../crates/proto" }
 db = { path = "../../crates/db" }
 common = { path = "../../crates/common" }

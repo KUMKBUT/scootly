@@ -36,12 +36,13 @@ async fn main() -> anyhow::Result<()> {
         .run(&pool)
         .await?;
 
-    // Шлюз YooKassa: Emulated до подключения боевых ключей (ключи из env —
-    // только через переменные, ADR-0014; настоящий HTTP-шлюз — следующий шаг).
+    // Шлюз YooKassa (MVP #11): заданы YOOKASSA_SHOP_ID/YOOKASSA_SECRET_KEY —
+    // настоящий API эквайринга, иначе эмуляция «на столе» (секреты — только
+    // env, ADR-0014).
     let state = AppState {
         pool: pool.clone(),
         jwt: JwtState(std::sync::Arc::new(jwt_secret)),
-        yookassa: YooKassa::Emulated,
+        yookassa: YooKassa::from_env(),
     };
 
     // gRPC PaymentOrchestrator (rental-service) — отдельным таском,
