@@ -1,0 +1,6 @@
+# Контекст сборки Docker — ./backend.
+target/
+**/target/
+.cargo/
+rust-toolchain.toml
+**/*.md

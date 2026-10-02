@@ -7,6 +7,15 @@ x-logging: &default-logging
     max-size: "10m"
     max-file: "3"
 
+# Healthcheck всех Rust-сервисов: /health на :9000 (curl есть в образах).
+# start_period — прогрев: миграции sqlx на старте.
+x-app-healthcheck: &app-healthcheck
+  test: ["CMD", "curl", "-fsS", "http://127.0.0.1:9000/health"]
+  interval: 10s
+  timeout: 3s
+  retries: 5
+  start_period: 15s
+
 services:
   postgres:
     image: postgres:16
@@ -20,6 +29,12 @@ services:
       - "${POSTGRES_PORT:-5432}:5432"
     volumes:
       - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-scootly} -d ${POSTGRES_DB:-scootly}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
 
   redis:
     image: redis:7
@@ -30,6 +45,12 @@ services:
       - "${REDIS_PORT:-6379}:6379"
     volumes:
       - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 5s
 
   kafka:
     image: apache/kafka:3.7.0
@@ -54,6 +75,31 @@ services:
       - "29092:29092"
     volumes:
       - kafka-data:/var/lib/kafka/data
+    healthcheck:
+      # KRaft-брокер готов принимать клиентов (скрипты в /opt/kafka/bin).
+      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server localhost:9092 >/dev/null 2>&1"]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+      start_period: 30s
+
+  mosquitto:
+    image: eclipse-mosquitto:2
+    restart: unless-stopped
+    logging: *default-logging
+    # Анонимный листенер — только dev; в проде EMQX/HiveMQ cluster (ADR-0009).
+    command: mosquitto -c /mosquitto-no-auth.conf
+    ports:
+      - "${MQTT_PORT:-1883}:1883"
+    volumes:
+      - mosquitto-data:/mosquitto/data
+    healthcheck:
+      # busybox nc есть в образе; TCP-check вместо клиентов MQTT.
+      test: ["CMD-SHELL", "nc -z 127.0.0.1 1883"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+      start_period: 5s
 
   prometheus:
     image: prom/prometheus:v2.52.0
@@ -92,17 +138,6 @@ services:
       - /var/lib/docker/:/var/lib/docker:ro
       - /dev/disk/:/dev/disk:ro
 
-  mosquitto:
-    image: eclipse-mosquitto:2
-    restart: unless-stopped
-    logging: *default-logging
-    # Анонимный листенер — только dev; в проде EMQX/HiveMQ cluster (ADR-0009).
-    command: mosquitto -c /mosquitto-no-auth.conf
-    ports:
-      - "${MQTT_PORT:-1883}:1883"
-    volumes:
-      - mosquitto-data:/mosquitto/data
-
   minio:
     image: minio/minio:RELEASE.2024-08-17T01-24-54Z
     restart: unless-stopped
@@ -126,6 +161,231 @@ services:
     volumes:
       - ./docs/architecture/landscape:/usr/local/structurizr
     command: local
+
+  # ─── Rust-сервисы (MVP #12) ────────────────────────────────────────────────
+  # Сборка: контекст ./backend, Dockerfile в каталоге каждого сервиса.
+  # Секреты — только через env (.env, см. .env.example); БД/Redis/Kafka —
+  # по именам сервисов. HTTP API на :9000 (скrape Prometheus — по именам,
+  # см. infra/monitoring/prometheus/prometheus.yml); на хост вынесены
+  # 8001–8006 — как в openapi servers (`http://localhost:<port>`).
+  # Миграции sqlx каждый DB-сервис гоняет на старте сам (advisory lock —
+  # параллельный старт безопасен).
+
+  auth-service:
+    build:
+      context: ./backend
+      dockerfile: services/auth-service/Dockerfile
+    restart: unless-stopped
+    logging: *default-logging
+    environment:
+      RUST_LOG: ${RUST_LOG:-info}
+      DATABASE_URL: postgres://${POSTGRES_USER:-scootly}:${POSTGRES_PASSWORD:-scootly}@postgres:5432/${POSTGRES_DB:-scootly}
+      JWT_SECRET: ${JWT_SECRET:-change-me-in-production}
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-0000000000:changeme}
+    ports:
+      - "8001:9000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck: *app-healthcheck
+
+  rental-service:
+    build:
+      context: ./backend
+      dockerfile: services/rental-service/Dockerfile
+    restart: unless-stopped
+    logging: *default-logging
+    environment:
+      RUST_LOG: ${RUST_LOG:-info}
+      DATABASE_URL: postgres://${POSTGRES_USER:-scootly}:${POSTGRES_PASSWORD:-scootly}@postgres:5432/${POSTGRES_DB:-scootly}
+      JWT_SECRET: ${JWT_SECRET:-change-me-in-production}
+      REDIS_URL: redis://redis:6379
+      # Тариф per_minute (MVP #4): копейки.
+      TARIFF_UNLOCK_KOPEKS: ${TARIFF_UNLOCK_KOPEKS:-2900}
+      TARIFF_PER_MIN_KOPEKS: ${TARIFF_PER_MIN_KOPEKS:-800}
+      TARIFF_HOLD_MINUTES: ${TARIFF_HOLD_MINUTES:-60}
+      # gRPC payment-service внутри сети compose (ADR-0003/0014).
+      PAYMENT_SERVICE_URL: http://payment-service:9001
+      # Замки (MVP #10): пусто — эмуляция; для MQTT-замков в .env укажите
+      # MQTT_BROKER_URL=tcp://mosquitto:1883 (не localhost!).
+      MQTT_BROKER_URL: ${MQTT_BROKER_URL:-}
+    ports:
+      - "8002:9000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      payment-service:
+        condition: service_healthy
+    healthcheck: *app-healthcheck
+
+  scooter-service:
+    build:
+      context: ./backend
+      dockerfile: services/scooter-service/Dockerfile
+    restart: unless-stopped
+    logging: *default-logging
+    environment:
+      RUST_LOG: ${RUST_LOG:-info}
+      DATABASE_URL: postgres://${POSTGRES_USER:-scootly}:${POSTGRES_PASSWORD:-scootly}@postgres:5432/${POSTGRES_DB:-scootly}
+      # gRPC :9001 слушается внутри сети (geo-service → SCOOTER_SERVICE_URL).
+    ports:
+      - "8005:9000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck: *app-healthcheck
+
+  payment-service:
+    build:
+      context: ./backend
+      dockerfile: services/payment-service/Dockerfile
+    restart: unless-stopped
+    logging: *default-logging
+    environment:
+      RUST_LOG: ${RUST_LOG:-info}
+      DATABASE_URL: postgres://${POSTGRES_USER:-scootly}:${POSTGRES_PASSWORD:-scootly}@postgres:5432/${POSTGRES_DB:-scootly}
+      JWT_SECRET: ${JWT_SECRET:-change-me-in-production}
+      # YooKassa (MVP #11): пусто — эмуляция; staging-ключи — в .env.
+      YOOKASSA_SHOP_ID: ${YOOKASSA_SHOP_ID:-}
+      YOOKASSA_SECRET_KEY: ${YOOKASSA_SECRET_KEY:-}
+      RECONCILIATION_INTERVAL_SECS: ${RECONCILIATION_INTERVAL_SECS:-300}
+    ports:
+      - "8004:9000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck: *app-healthcheck
+
+  geo-service:
+    build:
+      context: ./backend
+      dockerfile: services/geo-service/Dockerfile
+    restart: unless-stopped
+    logging: *default-logging
+    environment:
+      RUST_LOG: ${RUST_LOG:-info}
+      JWT_SECRET: ${JWT_SECRET:-change-me-in-production}
+      REDIS_URL: redis://redis:6379
+      # gRPC fallback last_position (ADR-0011).
+      SCOOTER_SERVICE_URL: http://scooter-service:9001
+    ports:
+      - "8003:9000"
+    depends_on:
+      redis:
+        condition: service_healthy
+      scooter-service:
+        condition: service_healthy
+    healthcheck: *app-healthcheck
+
+  ws-gateway:
+    build:
+      context: ./backend
+      dockerfile: services/ws-gateway/Dockerfile
+    restart: unless-stopped
+    logging: *default-logging
+    environment:
+      RUST_LOG: ${RUST_LOG:-info}
+      JWT_SECRET: ${JWT_SECRET:-change-me-in-production}
+      REDIS_URL: redis://redis:6379
+      KAFKA_BROKERS: kafka:9092
+    ports:
+      - "8006:9000"
+    depends_on:
+      redis:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    healthcheck: *app-healthcheck
+
+  # Каркасные сервисы (/health + метрики), потребители Kafka — по мере роста.
+  bot-service:
+    build:
+      context: ./backend
+      dockerfile: services/bot-service/Dockerfile
+    restart: unless-stopped
+    logging: *default-logging
+    environment:
+      RUST_LOG: ${RUST_LOG:-info}
+    healthcheck: *app-healthcheck
+
+  notification-service:
+    build:
+      context: ./backend
+      dockerfile: services/notification-service/Dockerfile
+    restart: unless-stopped
+    logging: *default-logging
+    environment:
+      RUST_LOG: ${RUST_LOG:-info}
+    healthcheck: *app-healthcheck
+
+  operator-service:
+    build:
+      context: ./backend
+      dockerfile: services/operator-service/Dockerfile
+    restart: unless-stopped
+    logging: *default-logging
+    environment:
+      RUST_LOG: ${RUST_LOG:-info}
+    healthcheck: *app-healthcheck
+
+  support-service:
+    build:
+      context: ./backend
+      dockerfile: services/support-service/Dockerfile
+    restart: unless-stopped
+    logging: *default-logging
+    environment:
+      RUST_LOG: ${RUST_LOG:-info}
+    healthcheck: *app-healthcheck
+
+  telemetry-service:
+    build:
+      context: ./backend
+      dockerfile: services/telemetry-service/Dockerfile
+    restart: unless-stopped
+    logging: *default-logging
+    environment:
+      RUST_LOG: ${RUST_LOG:-info}
+    healthcheck: *app-healthcheck
+
+  # Outbox → Kafka (MVP #8, ADR-0008): слушает общую таблицу outbox.
+  outbox-relay:
+    build:
+      context: ./backend
+      dockerfile: tools/outbox-relay/Dockerfile
+    restart: unless-stopped
+    logging: *default-logging
+    environment:
+      RUST_LOG: ${RUST_LOG:-info}
+      DATABASE_URL: postgres://${POSTGRES_USER:-scootly}:${POSTGRES_PASSWORD:-scootly}@postgres:5432/${POSTGRES_DB:-scootly}
+      KAFKA_BROKERS: kafka:9092
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    healthcheck: *app-healthcheck
+
+  # One-shot сидер самокатов (§3 mvp.md): вручную, чтобы `make up` не трогал данные.
+  # Запуск: docker compose --profile tools run --rm seeder (или make seed локально).
+  seeder:
+    build:
+      context: ./backend
+      dockerfile: tools/seeder/Dockerfile
+    profiles: [tools]
+    restart: "no"
+    logging: *default-logging
+    environment:
+      RUST_LOG: ${RUST_LOG:-info}
+      DATABASE_URL: postgres://${POSTGRES_USER:-scootly}:${POSTGRES_PASSWORD:-scootly}@postgres:5432/${POSTGRES_DB:-scootly}
+      REDIS_URL: redis://redis:6379
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
 
 volumes:
   postgres-data:

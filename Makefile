@@ -7,8 +7,8 @@ STRUCTURZR_TMP := /tmp/scootly-structurizr
 help: ## Показать доступные цели
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-12s %s\n", $$1, $$2}'
 
-up: ## Поднять локальный стек (postgres, redis, kafka, мониторинг)
-	docker compose up -d
+up: ## Поднять полный стек (infra + все сервисы + outbox-relay)
+	docker compose up -d --build
 
 down: ## Остановить локальный стек
 	docker compose down
