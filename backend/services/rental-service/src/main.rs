@@ -19,6 +19,7 @@ async fn main() -> anyhow::Result<()> {
     // (PG — source of truth, ADR-0003), поэтому URL не обязателен.
     let redis_url =
         std::env::var("REDIS_URL").unwrap_or_else(|_| "redis://127.0.0.1:6379".to_owned());
+    let redis = redis_client::LazyConnection::new(&redis_url)?;
     let port: u16 = std::env::var("PORT")
         .ok()
         .and_then(|p| p.parse().ok())
@@ -41,9 +42,11 @@ async fn main() -> anyhow::Result<()> {
     let state = AppState {
         pool,
         jwt: JwtState(Arc::new(jwt_secret)),
-        redis: redis_client::LazyConnection::new(&redis_url)?,
+        redis: redis.clone(),
         tariff,
-        locks: Locks::Emulated,
+        // Шлюз замков (MVP #10): MQTT_BROKER_URL → MQTT (ADR-0002),
+        // без переменной — эмуляция.
+        locks: Locks::from_env(redis),
         payments,
     };
 

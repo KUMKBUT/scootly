@@ -32,8 +32,9 @@ pub struct AppState {
     pub redis: LazyConnection,
     /// Тариф per_minute: фикс разблокировки + цена минуты (env, копейки).
     pub tariff: Tariff,
-    /// Шлюз замков: эмуляция до проводки MQTT (ADR-0002); ack-таймаут 10 c и
-    /// компенсация unlock-fail — MVP #6 (ADR-0006).
+    /// Шлюз замков: MQTT из env `MQTT_BROKER_URL` (MVP #10, ADR-0002) либо
+    /// эмуляция; ack-таймаут 10 c и компенсация unlock-fail — ADR-0006,
+    /// дедуп ack `msg_id` в Redis — ADR-0009.
     pub locks: Locks,
     /// Шлюз оплаты: холд на старте, capture на финише (MVP #5, ADR-0003/0014).
     pub payments: Payments,

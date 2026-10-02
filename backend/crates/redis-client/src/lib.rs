@@ -19,6 +19,12 @@ pub struct LazyConnection {
     conn: std::sync::Arc<Mutex<Option<ConnectionManager>>>,
 }
 
+impl std::fmt::Debug for LazyConnection {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("LazyConnection").finish_non_exhaustive()
+    }
+}
+
 impl LazyConnection {
     pub fn new(redis_url: &str) -> anyhow::Result<Self> {
         Ok(Self {
