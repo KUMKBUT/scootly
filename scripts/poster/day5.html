@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap');
+    body { font-family: 'Inter', 'Noto Sans', sans-serif; }
+    .mono { font-family: 'JetBrains Mono', monospace; }
+    .emoji { display: inline-block; vertical-align: -0.08em; }
+    .glow {
+      background:
+        radial-gradient(1100px 500px at 85% -10%, rgba(88,166,255,.14), transparent 60%),
+        radial-gradient(900px 500px at 5% 110%, rgba(63,185,80,.12), transparent 60%),
+        linear-gradient(135deg, #0d1117 0%, #161b22 100%);
+    }
+    .grid-overlay {
+      background-image:
+        linear-gradient(rgba(48,54,61,.35) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(48,54,61,.35) 1px, transparent 1px);
+      background-size: 48px 48px;
+      mask-image: radial-gradient(ellipse 90% 85% at 50% 40%, black 30%, transparent 75%);
+      -webkit-mask-image: radial-gradient(ellipse 90% 85% at 50% 40%, black 30%, transparent 75%);
+    }
+  </style>
+</head>
+<body class="w-[1920px] h-[1080px] glow text-[#e6edf3] overflow-hidden relative">
+  <div class="grid-overlay absolute inset-0"></div>
+  <div class="relative p-16 flex flex-col h-full">
+
+    <div class="flex items-baseline gap-6">
+      <span class="text-[80px] leading-none"><img src="assets/scooter.svg" class="emoji w-[72px] h-[72px]" alt="scooter"></span>
+      <h1 class="text-[84px] font-extrabold tracking-tight leading-none">Scootly</h1>
+      <span class="mono text-[30px] text-[#8b949e] ml-4">pet project · day 5</span>
+    </div>
+
+    <p class="mono text-[30px] text-[#58a6ff] mt-5">
+      Ещё три задачи закрыты: MQTT-замки, YooKassa staging и полный Docker Compose
+    </p>
+
+    <div class="flex-1 flex gap-10 mt-10 min-h-0">
+
+      <div class="w-[46%] flex flex-col gap-[10px]">
+        <p class="mono text-[22px] text-[#3fb950] tracking-widest mb-1">ЭТАП 1 · ПЛАТЯЩИЙ ЦИКЛ — 8/8 ✓</p>
+
+        <div class="grid grid-cols-2 gap-[10px]">
+          <div class="flex items-center gap-3 rounded-xl px-4 py-[8px] bg-[#3fb950]/10 border border-[#3fb950]/60"><span class="mono text-[21px] font-semibold text-[#3fb950]">01</span><span class="text-[23px] font-semibold">Авторизация</span></div>
+          <div class="flex items-center gap-3 rounded-xl px-4 py-[8px] bg-[#3fb950]/10 border border-[#3fb950]/60"><span class="mono text-[21px] font-semibold text-[#3fb950]">02</span><span class="text-[23px] font-semibold">Карта + GEO</span></div>
+          <div class="flex items-center gap-3 rounded-xl px-4 py-[8px] bg-[#3fb950]/10 border border-[#3fb950]/60"><span class="mono text-[21px] font-semibold text-[#3fb950]">03</span><span class="text-[23px] font-semibold">Бронь · TTL 10 мин</span></div>
+          <div class="flex items-center gap-3 rounded-xl px-4 py-[8px] bg-[#3fb950]/10 border border-[#3fb950]/60"><span class="mono text-[21px] font-semibold text-[#3fb950]">04</span><span class="text-[23px] font-semibold">Поездка</span></div>
+          <div class="flex items-center gap-3 rounded-xl px-4 py-[8px] bg-[#3fb950]/10 border border-[#3fb950]/60"><span class="mono text-[21px] font-semibold text-[#3fb950]">05</span><span class="text-[23px] font-semibold">Оплата hold→capture</span></div>
+          <div class="flex items-center gap-3 rounded-xl px-4 py-[8px] bg-[#3fb950]/10 border border-[#3fb950]/60"><span class="mono text-[21px] font-semibold text-[#3fb950]">06</span><span class="text-[23px] font-semibold">Unlock-fail компенсация</span></div>
+          <div class="flex items-center gap-3 rounded-xl px-4 py-[8px] bg-[#3fb950]/10 border border-[#3fb950]/60"><span class="mono text-[21px] font-semibold text-[#3fb950]">07</span><span class="text-[23px] font-semibold">История</span></div>
+          <div class="flex items-center gap-3 rounded-xl px-4 py-[8px] bg-[#3fb950]/10 border border-[#3fb950]/60"><span class="mono text-[21px] font-semibold text-[#3fb950]">08</span><span class="text-[23px] font-semibold">Outbox → Kafka</span></div>
+        </div>
+
+        <p class="mono text-[22px] text-[#8b949e] tracking-widest mt-4 mb-1">ЭТАП 2 · ИНТЕГРАЦИИ — 4/5 ✓</p>
+
+        <div class="flex items-center gap-4 rounded-2xl px-5 py-[8px] bg-[#3fb950]/10 border border-[#3fb950]/60">
+          <span class="mono text-[22px] font-semibold text-[#3fb950]">09</span><span class="text-[23px] font-semibold">Метрики → Grafana</span><span class="mono ml-auto text-[18px] font-semibold px-3 py-1 rounded-full bg-[#3fb950] text-[#0d1117]">DONE</span>
+        </div>
+        <div class="flex items-center gap-4 rounded-2xl px-5 py-[8px] bg-[#3fb950]/10 border border-[#3fb950]/60">
+          <span class="mono text-[22px] font-semibold text-[#3fb950]">10</span><span class="text-[23px] font-semibold">Реальные замки · MQTT</span><span class="mono ml-auto text-[18px] font-semibold px-3 py-1 rounded-full bg-[#3fb950] text-[#0d1117]">DONE</span>
+        </div>
+        <div class="flex items-center gap-4 rounded-2xl px-5 py-[8px] bg-[#3fb950]/10 border border-[#3fb950]/60">
+          <span class="mono text-[22px] font-semibold text-[#3fb950]">11</span><span class="text-[23px] font-semibold">YooKassa в staging</span><span class="mono ml-auto text-[18px] font-semibold px-3 py-1 rounded-full bg-[#3fb950] text-[#0d1117]">DONE</span>
+        </div>
+        <div class="flex items-center gap-4 rounded-2xl px-5 py-[8px] bg-[#3fb950]/10 border border-[#3fb950]/60">
+          <span class="mono text-[22px] font-semibold text-[#3fb950]">12</span><span class="text-[23px] font-semibold">Полный стек · Docker Compose</span><span class="mono ml-auto text-[18px] font-semibold px-3 py-1 rounded-full bg-[#3fb950] text-[#0d1117]">DONE</span>
+        </div>
+        <div class="flex items-center gap-4 rounded-2xl px-5 py-[8px] bg-[#161b22]/70 border border-[#30363d]">
+          <span class="mono text-[22px] text-[#8b949e]">13</span><span class="text-[23px] text-[#c9d1d9]">DoD-прогон на staging</span><span class="mono ml-auto text-[18px] text-[#8b949e]">next</span>
+        </div>
+      </div>
+
+      <div class="flex-1 flex flex-col gap-5 min-h-0">
+        <div class="rounded-2xl p-6 bg-[#0d1117]/80 border border-[#3fb950]/50">
+          <p class="mono text-[20px] text-[#3fb950] tracking-widest">✓ ЗАДАЧИ ДНЯ · MVP 10–12</p>
+          <ul class="text-[24px] mt-3 leading-snug space-y-2">
+            <li><span class="mono text-[#58a6ff]">10 · MQTT</span> — реальные команды unlock/lock, ack до 10 с, дедупликация `msg_id` в Redis</li>
+            <li><span class="mono text-[#58a6ff]">11 · YooKassa</span> — staging-интеграция, вебхуки и сверка платежей каждые 5 минут</li>
+            <li><span class="mono text-[#58a6ff]">12 · Compose</span> — все сервисы + outbox-relay, healthcheck-зависимости, полный стек через `make up`</li>
+          </ul>
+          <p class="mono text-[20px] text-[#3fb950] mt-4">этап 2: 4 из 5 задач закрыты ✓</p>
+        </div>
+
+        <div class="rounded-2xl px-6 py-5 bg-[#0d1117]/80 border border-[#30363d]">
+          <p class="mono text-[20px] text-[#8b949e] tracking-widest">ДАЛЬШЕ · MVP 13</p>
+          <p class="text-[24px] mt-2 leading-snug">DoD-прогон на staging: полный e2e-цикл без ручных правок в БД и нагрузочный тест unlock, цель <span class="mono text-[#58a6ff]">p95 &lt; 2 с</span>.</p>
+        </div>
+
+        <p class="mono text-[20px] text-[#3fb950] mt-auto">Этап 1 · платящий цикл 8/8 ✓ · Этап 2 · 4/5 ✓</p>
+      </div>
+    </div>
+
+    <div class="flex justify-between items-center mt-8 pt-7 border-t border-[#30363d]">
+      <span class="text-[25px]"><img src="assets/crab.svg" class="emoji w-[30px] h-[30px]" alt=""> Rust + Axum · Postgres · Redis · Kafka · MQTT · YooKassa</span>
+      <span class="mono text-[22px] text-[#8b949e]">github.com/KUMKBUT/scootly</span>
+    </div>
+
+  </div>
+</body>
+</html>

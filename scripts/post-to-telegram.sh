@@ -8,7 +8,7 @@ set -euo pipefail
 #   TELEGRAM_BOT_TOKEN — токен бота (@BotFather)
 #   TELEGRAM_CHANNEL   — id или @username канала
 #
-# Опционально (по умолчанию — обложка day 1):
+# Опционально (по умолчанию — постер day 5):
 #   POSTER_PHOTO   — путь к PNG (напр. docs/architecture/exports/poster-day2-telegram.png)
 #   POSTER_CAPTION — путь к подписи MarkdownV2 (напр. scripts/poster/caption-day2.md)
 #
@@ -18,8 +18,8 @@ BOT_TOKEN="${TELEGRAM_BOT_TOKEN:?set TELEGRAM_BOT_TOKEN}"
 CHANNEL="${TELEGRAM_CHANNEL:?set TELEGRAM_CHANNEL}"
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-PHOTO="${POSTER_PHOTO:-${ROOT}/docs/architecture/exports/poster-telegram.png}"
-CAPTION_FILE="${POSTER_CAPTION:-${ROOT}/scripts/poster/caption.md}"
+PHOTO="${POSTER_PHOTO:-${ROOT}/docs/architecture/exports/poster-day5-telegram.png}"
+CAPTION_FILE="${POSTER_CAPTION:-${ROOT}/scripts/poster/caption-day5.md}"
 
 test -f "${PHOTO}" || { echo "poster not found: ${PHOTO}" >&2; exit 1; }
 test -f "${CAPTION_FILE}" || { echo "caption not found: ${CAPTION_FILE}" >&2; exit 1; }
