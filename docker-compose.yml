@@ -139,10 +139,11 @@ services:
       - /dev/disk/:/dev/disk:ro
 
   minio:
-    image: minio/minio:RELEASE.2024-08-17T01-24-54Z
+    # Официальный minio/minio удалён с Docker Hub (404, MinIO вычистил образы
+    # в 2025) — S3-совместимый форк bitnamilegacy, замороженный релиз 2025.07.
+    image: bitnamilegacy/minio:2025.7.23-debian-12-r5
     restart: unless-stopped
     logging: *default-logging
-    command: server /data --console-address ":9001"
     environment:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minio}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minio12345}
@@ -150,7 +151,7 @@ services:
       - "9000:9000"
       - "9001:9001"
     volumes:
-      - minio-data:/data
+      - minio-data:/bitnami/minio/data
 
   structurizr:
     image: structurizr/structurizr@sha256:721136283c2f9cf1ba69037bc9de136c579d66fdcb2d771cb60546ec68def1a5
